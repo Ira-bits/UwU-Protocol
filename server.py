@@ -1,6 +1,7 @@
 import socket
 from collections import deque
 from header import Header
+from multiprocessing import multiprocessing
 
 
 class Server:
@@ -10,6 +11,25 @@ class Server:
                                   type=socket.SOCK_DGRAM)
         self.sock.bind((addr, port))
         self.receive_wind = set()
+
+        self.connection_close = False
+
+        self.recv_proc = multiprocessing.Process(
+            target=self.receive(), args=(None, ))
+
+        self.recv_proc = multiprocessing.Process(
+            target=self.receive(), args=(None, ))
+
+    def send():
+        '''
+        read the buffer etc.
+        '''
+
+    def appl_send(data):
+        '''
+        modify the buffer
+        '''
+        pass
 
     def strip_header(self, pack):
         # network = big endian
@@ -28,9 +48,8 @@ class Server:
     def handle_ACK(self):
         pass
 
-    def run(self):
-
-        while(True):
+    def receive(self):
+        while(not self.connection_close):
             bytes_addr_pair = self.sock.recvfrom(
                 self.buf_size)  # recvfrom has IP address
             # todo, fork a process for each client
@@ -44,10 +63,6 @@ class Server:
                 handle_ACK()
 
 
-def main():
+def run_server():
     server = Server()
-    server.run()
-
-
-if __name__ == '__main__':
-    main()
+    return server

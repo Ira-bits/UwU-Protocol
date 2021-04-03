@@ -1,5 +1,6 @@
 import socket
 from header import Header
+from multiprocessing import multiprocessing
 
 
 class Client:
@@ -9,6 +10,11 @@ class Client:
         self.buf_size = 1024
         self.server_loc = (serv_addr, serv_port)
         self.message = ''
+        self.client_ip = None
+        self.client_port = None
+
+        self.recv_proc = multiprocessing.Process(
+            target=self.receive(), args=(None, ))
 
     def request_handler(self, data):
         return Header(FLAGS=b'\x8a').return_header()+data
@@ -17,7 +23,7 @@ class Client:
         req = self.request_handler(data)
         self.sock.sendto(req, self.server_loc)
 
-    def rcv(self):
+    def receive(self):
         message, _ = self.sock.recvfrom(self.buf_size)
 
         self.message, *_ = self.strip_header(message)
@@ -33,12 +39,6 @@ class Client:
         return data, ACK_NO, SEQ_NO, FLAGS, rwnd_size
 
 
-def main():
+def run_client():
     client = Client()
-    client.send()
-    client.rcv()
-    print(client.message.decode('utf-8'))
-
-
-if __name__ == '__main__':
-    main()
+    return client
