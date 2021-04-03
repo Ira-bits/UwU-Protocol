@@ -1,6 +1,6 @@
 import socket
 from header import Header
-from multiprocessing import multiprocessing
+import multiprocessing
 
 
 class Client:
@@ -14,7 +14,9 @@ class Client:
         self.client_port = None
 
         self.recv_proc = multiprocessing.Process(
-            target=self.receive(), args=(None, ))
+            target=self.receive)
+
+        # Dont start a send unless there is something to send
 
     def request_handler(self, data):
         return Header(FLAGS=b'\x8a').return_header()+data
@@ -27,6 +29,7 @@ class Client:
         message, _ = self.sock.recvfrom(self.buf_size)
 
         self.message, *_ = self.strip_header(message)
+        print(self.message)
 
     def strip_header(self, pack):
         # network = big endian
