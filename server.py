@@ -10,6 +10,10 @@ class Server:
         self.sock = socket.socket(
             family=socket.AF_INET, type=socket.SOCK_DGRAM)
         self.sock.bind((addr, port))
+
+        self.addr = addr
+        self.port = port
+        #
         self.receive_wind = set()
 
         self.connection_close = False
@@ -18,15 +22,22 @@ class Server:
 
         # Dont start a send unless there is something to send
 
-    def send(self):
+    def send(self, packet: bytes, client_loc: tuple):
         """
         read the buffer etc.
         """
+        packet = Header(FLAGS=b'\x8a').return_header()+packet
+        self.sock.sendto(packet, client_loc)
 
-    def appl_send(self, data):
+    def appl_send(self, data, client_loc):
         """
         modify the buffer
         """
+        print(len(data))
+        packets = [data[i:min(len(data)-1, i+600)]
+                   for i in range(0, len(data), 600)]
+        for packet in packets:
+            self.send(packet, client_loc)
         pass
 
     def strip_header(self, pack):
@@ -58,7 +69,9 @@ class Server:
             data = self.handle_request(req)
 
             if data != -1:
-                self.sock.sendto(data, address)
+                payload = ("A"*100000).encode()
+                self.appl_send(payload, client_loc=address)
+                #self.sock.sendto(payload, address)
             else:
                 handle_ACK()
 

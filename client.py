@@ -26,10 +26,11 @@ class Client:
         self.sock.sendto(req, self.server_loc)
 
     def receive(self):
-        message, _ = self.sock.recvfrom(self.buf_size)
+        while(True):
+            message, _ = self.sock.recvfrom(self.buf_size)
 
-        self.message, *_ = self.strip_header(message)
-        print(self.message)
+            self.message, *_ = self.strip_header(message)
+            print(self.message)
 
     def strip_header(self, pack):
         # network = big endian
