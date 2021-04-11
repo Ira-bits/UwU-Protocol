@@ -1,8 +1,10 @@
 import struct
 
+# SYN ACK FIN
+
 
 class Header():
-    def __init__(self, ACK=1, SEQ=1, FLAGS=b'\0', rwnd=4, client=False):
+    def __init__(self, ACK=1, SEQ=1, FLAGS=b'\x00', rwnd=4, client=False):
         self.ACK_NO = ACK
         self.SEQ_NO = SEQ
         self.FLAGS = FLAGS

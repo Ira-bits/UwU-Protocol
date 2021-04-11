@@ -1,8 +1,11 @@
 from driver import *
+import logging
+
 serv = create_server_process()
 serv.recv_proc.start()
-print("server done")
+logging.info("Server setup")
+
 client = create_client_process()
 client.recv_proc.start()
-client.send()
-print("here")
+logging.info("Client setup")
+client.connect_to()
