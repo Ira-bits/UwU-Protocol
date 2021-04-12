@@ -2,8 +2,10 @@ import socket
 from collections import deque
 from header import Header
 import multiprocessing
-from lib import logServer
+from lib import logServer, setupLogging
 from config import *
+from threading import Timer
+import select
 
 
 class ClientState:
@@ -11,6 +13,7 @@ class ClientState:
         self.client_loc = client_loc
         self.SEQ_NO = SEQ_NO
         self.ACK_NO = ACK_NO
+        self.is_connected = False
 
 
 class Server:
@@ -24,6 +27,7 @@ class Server:
         self.port = port
         #
         self.receive_wind = set()
+        self.connect_ack_timeouts = 1
 
         self.connection_close = False
         self.recv_proc = multiprocessing.Process(
@@ -66,32 +70,52 @@ class Server:
 
         return data, ACK_NO, SEQ_NO, FLAGS, rwnd_size
 
-    def handle_connect(self, req, client_loc):
+    # def recvfrom_timeout(self):
+    #     ready = select.select([self.sock], [], [], SOCKET_TIMEOUT)
+    #     if ready[0]:
+    #         return self.sock.recvfrom(self.buf_size)
+
+    #     return self.sock.timeout()
+
+    def handle_connect(self, request, client_loc):
         '''
         Handles a connect request from a client,
         assigns sequence numbers to a client
         '''
 
-        req, ACK_NO, SEQ_NO, FLAGS, rwnd_size = self.strip_header(req)
+        if self.connect_ack_timeouts == 3:
+            logClient(
+                f"Failed to connect {self.connect_ack_timeouts} times. Giving up.")
+
+        req, ACK_NO, SEQ_NO, FLAGS, rwnd_size = self.strip_header(request)
 
         logServer(f"Flags: {FLAGS}")
 
         if bytes([FLAGS[0] & SYN_FLAG[0]]) != b'\x00':
 
-            if bytes([FLAGS[0] & ACK_FLAG[0]]) == b'\x00':
+            logServer(
+                f"Received connect request from client {client_loc}")
 
-                logServer(
-                    f"Received connect request from client {client_loc}")
+            logServer(f"Assigning SEQ_NO {3000} to client {client_loc}")
 
-                logServer(f"Assigning SEQ_NO {3000} to client {client_loc}")
+            self.send(packet=b"", client_loc=client_loc,
+                      FLAGS=SYNACK_FLAG, SEQ_NO=3000)
 
-                self.send(packet=b"", client_loc=client_loc,
-                          FLAGS=SYNACK_FLAG, SEQ_NO=3000)
+            try:
+                self.sock.settimeout(SOCKET_TIMEOUT)
+                message = self.sock.recv(self.buf_size)
+            except socket.timeout as e:
+                logServer("Timed out expecting ACK")
+                self.connect_ack_timeouts += 1
+                return self.handle_connect(request, client_loc)
+
+            if bytes([FLAGS[0] & ACK_FLAG[0]]) != b'\x00':
+                self.handle_connect_ACK(client_loc)
 
             return True
 
         elif bytes([FLAGS[0] & ACK_FLAG[0]]) != b'\x00':
-
+            self.is_connected = True
             self.handle_connect_ACK(client_loc)
             return True
 
@@ -106,7 +130,9 @@ class Server:
         while not self.connection_close:
             bytes_addr_pair = self.sock.recvfrom(
                 self.buf_size
-            )  # recvfrom has IP address
+            )
+            print("received")
+            # recvfrom has IP address
             # todo, fork a process for each client
             req, address = bytes_addr_pair
             connect = self.handle_connect(req, address)
@@ -114,9 +140,17 @@ class Server:
             if connect != True:
                 payload = ("A"*1000).encode()
                 self.appl_send(payload, client_loc=address)
-                #self.sock.sendto(payload, address)
+                # self.sock.sendto(payload, address)
 
 
 def run_server():
     server = Server()
     return server
+
+
+if __name__ == "__main__":
+    setupLogging()
+    serv = run_server()
+    app_server = serv
+    app_server.recv_proc.start()
+    logServer("Server started")
