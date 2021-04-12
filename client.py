@@ -45,7 +45,7 @@ class Client:
 
             self.message, *_ = self.strip_header(message)
             self.ACK_NO += 1
-            logging.info(f"Receiving Packet #:{count} from server")
+            logging.info(f"Receiving Packet #:{self.ACK_NO} from server")
 
     def strip_header(self, pack):
         # network = big endian
