@@ -1,7 +1,8 @@
 import socket
 from header import Header
 import multiprocessing
-import logging
+from lib import logClient
+from config import *
 
 
 class Client:
@@ -22,20 +23,17 @@ class Client:
 
         # Dont start a send unless there is something to send
 
-    def request_handler(self, data: bytes, FLAGS=b'\x0a'):
+    def request_handler(self, data: bytes, FLAGS=b'\x00'):
         return Header(FLAGS=FLAGS).return_header()+data
 
     def send(self, data=b'Hello, there', connect=False, ACK=False):
         flags = b'\x00'
         if connect:
-            flags = bytes([flags[0] | b'\x80'[0]])
-            if ACK:
-                flags = bytes([flags[0] | b'\x40'[0]])
+            flags = bytes([flags[0] | SYN_FLAG[0]])
+        if ACK:
+            flags = bytes([flags[0] | ACK_FLAG[0]])
 
-            req = self.request_handler(data, FLAGS=flags)
-            self.sock.sendto(req, self.server_loc)
-
-        req = self.request_handler(data)
+        req = self.request_handler(data, FLAGS=flags)
         self.sock.sendto(req, self.server_loc)
 
     def receive(self):
@@ -45,7 +43,7 @@ class Client:
 
             self.message, *_ = self.strip_header(message)
             self.ACK_NO += 1
-            logging.info(f"Receiving Packet #:{self.ACK_NO} from server")
+            logClient(f"Receiving Packet #:{self.ACK_NO} from server")
 
     def strip_header(self, pack):
         # network = big endian
@@ -58,8 +56,12 @@ class Client:
         return data, ACK_NO, SEQ_NO, FLAGS, rwnd_size
 
     def connect_to(self):
-        logging.info(f"Sending a connect request to server {self.server_loc}")
+        logClient(f"Sending a connect request to server {self.server_loc}")
         self.send(data=b"", connect=True, ACK=False)
+        # TODO: send a re-connect request if it timesout
+        message, _ = self.sock.recvfrom(self.buf_size)
+        logClient(f"Sending a connect ACK to server {self.server_loc}")
+        self.send(data=b"", connect=False, ACK=True)
 
 
 def run_client():

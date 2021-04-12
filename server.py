@@ -2,7 +2,15 @@ import socket
 from collections import deque
 from header import Header
 import multiprocessing
-import logging
+from lib import logServer
+from config import *
+
+
+class ClientState:
+    def __init__(self, client_loc, SEQ_NO, ACK_NO):
+        self.client_loc = client_loc
+        self.SEQ_NO = SEQ_NO
+        self.ACK_NO = ACK_NO
 
 
 class Server:
@@ -23,26 +31,29 @@ class Server:
 
         # Dont start a send unless there is something to send
 
-    def send(self, packet: bytes, client_loc: tuple):
+    def send(self, packet: bytes, client_loc: tuple, FLAGS=b'\x00', SEQ_NO=1):
         """
-        read the buffer etc.
+        Sends a packet
         """
-        packet = Header(FLAGS=b'\x8a').return_header()+packet
-        logging.info(
+        packet = Header(FLAGS=FLAGS, SEQ=SEQ_NO).return_header()+packet
+        logServer(
             f"Sending packet number: {0} of size {len(packet)} bytes to client {client_loc[0]}:{client_loc[1]}")
         self.sock.sendto(packet, client_loc)
 
-    def appl_send(self, data, client_loc, FLAGS=b'\x0a', SEQ_NO=1):
+    def appl_send(self, data, client_loc, FLAGS=b'\x00', SEQ_NO=1):
         """
-        modify the buffer
+        API for the application to send a file from server to client
+        This function is not to be used internally except for testing
+        Calls Server.send() for sending each packet
+        modifies the entire buffer: splits into packets
         """
-        logging.info(
-            f"Sending {len(data)} bytes to client {client_loc[0]}:{client_loc[1]}")
+        logServer(
+            f"Sending {len(data)} bytes to client with flags {bytearray(FLAGS).hex()}")
         packets = [data[i:min(len(data)-1, i+600)]
                    for i in range(0, len(data), 600)]
 
         for packet in packets:
-            self.send(packet, client_loc)
+            self.send(packet, client_loc, FLAGS=FLAGS)
         pass
 
     def strip_header(self, pack):
@@ -56,26 +67,39 @@ class Server:
         return data, ACK_NO, SEQ_NO, FLAGS, rwnd_size
 
     def handle_connect(self, req, client_loc):
-        req, ACK_NO, SEQ_NO, FLAGS, rwnd_size = self.strip_header(req)
-        print(f"Flags: {FLAGS}")
-        if bytes([FLAGS[0] & b'\x80'[0]]) != b'\x00':
-            if bytes([FLAGS[0] & b'\x40'[0]]) != b'\x00':
-                logging.info(
-                    f"Received connect request from client {client_loc}")
-                logging.info(f"Assigning SEQ_NO {3000} to client {client_loc}")
+        '''
+        Handles a connect request from a client,
+        assigns sequence numbers to a client
+        '''
 
-                self.appl_send(data="", client_loc=client_loc,
-                               FLAGS='\xc0', SEQ_NO=3000)
+        req, ACK_NO, SEQ_NO, FLAGS, rwnd_size = self.strip_header(req)
+
+        logServer(f"Flags: {FLAGS}")
+
+        if bytes([FLAGS[0] & SYN_FLAG[0]]) != b'\x00':
+
+            if bytes([FLAGS[0] & ACK_FLAG[0]]) == b'\x00':
+
+                logServer(
+                    f"Received connect request from client {client_loc}")
+
+                logServer(f"Assigning SEQ_NO {3000} to client {client_loc}")
+
+                self.send(packet=b"", client_loc=client_loc,
+                          FLAGS=SYNACK_FLAG, SEQ_NO=3000)
+
             return True
+
+        elif bytes([FLAGS[0] & ACK_FLAG[0]]) != b'\x00':
+
+            self.handle_connect_ACK(client_loc)
+            return True
+
         else:
             return False
-        '''
-        return Header(FLAGS=b"\x11").return_header() + str.encode(
-            "I wanna be a cowboy, baby", encoding="ascii"
-        )
-        '''
 
-    def handle_ACK(self):
+    def handle_connect_ACK(self, client_loc):
+        logServer(f"Accepting connection from client: {client_loc}")
         pass
 
     def receive(self):
@@ -85,15 +109,12 @@ class Server:
             )  # recvfrom has IP address
             # todo, fork a process for each client
             req, address = bytes_addr_pair
-            data = self.handle_connect(req, address)
+            connect = self.handle_connect(req, address)
 
-            print(f"result of connect: {data}")
-            if data != -1:
+            if connect != True:
                 payload = ("A"*1000).encode()
                 self.appl_send(payload, client_loc=address)
                 #self.sock.sendto(payload, address)
-            else:
-                handle_ACK()
 
 
 def run_server():
