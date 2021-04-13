@@ -16,19 +16,22 @@ class Header():
 
     def as_bytes(self) -> bytes:
         pack_string = '!IIcI'
-        return struct.pack(pack_string, self.ACK_NO, self.SEQ_NO, self.FLAGS, self.rwnd_size)
+        return struct.pack(pack_string, self.ACK_NO, self.SEQ_NO, self.FLAGS, self.rwnd)
 
 
 class Packet():
-    def __init__(self, header: Header, data: bytes = b""):
-        self.header = header
-        self.data = data
-        self.len = len(header.as_bytes()) + len(data)
+    def __init__(self, variable, data: bytes = b""):
+        if(type(variable) == bytes):
+            self.strip_packet(variable)
+        else:
+            self.header = variable
+            self.data = data
+            self.len = len(variable.as_bytes()) + len(data)
 
-    def __init__(self, raw_packet: bytes):
+    def strip_packet(self, raw_packet: bytes):
         # network = big endian
-        ACK_NO = int.from_bytes(raw_pack[0:4], byteorder="big")
-        SEQ_NO = int.from_bytes(raw_pack[4:8], byteorder="big")
+        ACK_NO = int.from_bytes(raw_packet[0:4], byteorder="big")
+        SEQ_NO = int.from_bytes(raw_packet[4:8], byteorder="big")
         FLAGS = bytes([raw_packet[8]])
         rwnd_size = int.from_bytes(
             raw_packet[9:13], byteorder="big", signed=True)
@@ -38,4 +41,4 @@ class Packet():
         self.data = data
 
     def as_bytes(self) -> bytes:
-        return self.header.return_header() + self.data
+        return self.header.as_bytes() + self.data
