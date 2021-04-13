@@ -1,7 +1,13 @@
+
 import socket
+import select
+import threading
+from threading import Timer
+
+from header import Header, Packet
+from lib import logServer, setupLogging
+from config import *
 from collections import deque
-from header import Header
-import multiprocessing
 
 
 class Server:
@@ -10,59 +16,108 @@ class Server:
         self.sock = socket.socket(
             family=socket.AF_INET, type=socket.SOCK_DGRAM)
         self.sock.bind((addr, port))
+
+        self.addr = addr
+        self.port = port
+        self.connectionState: ConnState = ConnState.NO_CONNECT
         self.receive_wind = set()
 
-        self.connection_close = False
-        self.recv_proc = multiprocessing.Process(
+        # For send()
+        self.has_packet_buffer = threading.Event()
+        self.packet_buffer = deque([])
+        # self.send_buffer: None | Packet = None
+
+        self.client_loc: None
+
+        self.recv_thread = threading.Thread(
             target=self.receive)
 
-        # Dont start a send unless there is something to send
+        # start a receive process
+        self.recv_thread.start()
+        self.processPacketLoop()
 
-    def send(self):
-        """
-        read the buffer etc.
-        """
+    def pushPacketToBuffer(self, packet: Packet, location: tuple):
+        '''
+            Fills the buffer to send the packet
+        '''
+        self.packet_buffer.append((packet, location))
+        self.has_packet_buffer.set()
 
-    def appl_send(self, data):
-        """
-        modify the buffer
-        """
+    def processSinglePacket(self, packet: Packet, location: tuple):
+        if self.connectionState is not ConnState.CONNECTED:
+            self.tryConnect(packet, location)
+        else:
+            self.processRequest(packet, location)
+
+    def processRequest(self, packet: Packet, location: tuple):
         pass
 
-    def strip_header(self, pack):
-        # network = big endian
-        ACK_NO = int.from_bytes(pack[0:4], byteorder="big")
-        SEQ_NO = int.from_bytes(pack[4:8], byteorder="big")
-        FLAGS = pack[8]
-        rwnd_size = int.from_bytes(pack[9:13], byteorder="big", signed=True)
-        data = pack[13:]
+    def processPacketLoop(self):
+        """
+        Sends a packet
+        """
+        while True:
+            self.has_packet_buffer.wait()
 
-        return data, ACK_NO, SEQ_NO, FLAGS, rwnd_size
+            # Sanity check
+            if self.packet_buffer is None:
+                logServer(
+                    f"Execption: send() tried with empty send_buffer or client_loc")
+                exit(1)
 
-    def handle_request(self, req):
-        req, *_ = self.strip_header(req)
-        return Header(FLAGS=b"\x11").return_header() + str.encode(
-            "I wanna be a cowboy, baby", encoding="ascii"
-        )
+            packet, location = self.packet_buffer.popleft()
+            logServer(
+                f"Sending packet number: {0} of size {len(packet.data)} bytes.")
 
-    def handle_ACK(self):
-        pass
+            self.processSinglePacket(packet, location)
+            self.has_packet_buffer.clear()
+
+    def tryConnect(self, packet: Packet, location: tuple):
+        if self.connectionState is ConnState.NO_CONNECT:
+
+            if packet.header.has_flag(SYN_FLAG):
+                self.connectionState = ConnState.SYN
+                logServer(
+                    f"SYN_ACK being sent to client at {location}")
+
+                synAckPacket = Packet(Header(1, 3000, SYNACK_FLAG))
+                self.sock.sendto(synAckPacket.as_bytes(), location)
+                self.connectionState = ConnState.SYNACK
+
+            else:
+                logServer(
+                    f"Expected SYN_FLAG with NO_CONNECT state, got {packet.header.FLAGS} instead")
+
+        elif self.connectionState is ConnState.SYNACK:
+
+            if packet.header.has_flag(ACK_FLAG):
+                self.connectionState = ConnState.CONNECTED
+                logServer(f"State changed to connected")
+            elif packet.header.has_flag(SYN_FLAG):
+                self.connectionState = ConnState.SYN
+                logServer(
+                    f"SYN_ACK again being sent to client at {location}")
+
+                synAckPacket = Packet(Header(1, 3000, SYNACK_FLAG))
+                self.sock.sendto(packet.as_bytes(), location)
+                self.connectionState = ConnState.SYNACK
+            else:
+                logServer(
+                    f"Expected ACK_FLAG with SYNACK state, got {packet.header.FLAGS} instead")
+        else:
+            logServer(f"Invalid state {self.connectionState}")
 
     def receive(self):
-        while not self.connection_close:
-            bytes_addr_pair = self.sock.recvfrom(
-                self.buf_size
-            )  # recvfrom has IP address
-            # todo, fork a process for each client
-            req, address = bytes_addr_pair
-            data = self.handle_request(req)
-
-            if data != -1:
-                self.sock.sendto(data, address)
-            else:
-                handle_ACK()
+        logServer(f"Listening for connections on port {self.port}")
+        while True:
+            # Server ALWAYS listens. No timeout for receive.
+            self.sock.settimeout(None)
+            bytes_addr_pair = self.sock.recvfrom(self.buf_size)
+            req, location = bytes_addr_pair
+            packet = Packet(req)
+            self.pushPacketToBuffer(packet, location)
 
 
-def run_server():
-    server = Server()
-    return server
+if __name__ == "__main__":
+    setupLogging()
+    Server()
