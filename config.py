@@ -9,8 +9,8 @@ ACK_FLAG = b'\x40'
 SYNACK_FLAG = b'\xc0'
 FIN_FLAG = b'\x20'
 FINACK_FLAG = b'\x60'
-SOCKET_TIMEOUT = 5.0
-MAX_FAIL_COUNT = 3
+SOCKET_TIMEOUT = 1.0
+MAX_FAIL_COUNT = 7
 
 # 1. no connection
 # 2. syn happened

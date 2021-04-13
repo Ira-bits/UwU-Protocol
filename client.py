@@ -76,7 +76,7 @@ class Client:
 
     def pushPacketToBuffer(self, packet: Packet):
         logClient(
-            f"received packet, with flags: {bytearray(packet.header.FLAGS).hex()}")
+            f"found packet in buffer, with flags: {bytearray(packet.header.FLAGS).hex()}")
         self.packet_buffer.append(packet)
         self.has_packet_buffer.set()
 
