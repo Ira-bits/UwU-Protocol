@@ -11,8 +11,8 @@ class Header():
         self.rwnd = rwnd
         # self.rwnd_size = rwnd if client is False else -1
 
-    def has_flag(flag: bytes) -> bool:
-        return (bytes(self.FLAGS[0] & flag[0]) == self.FLAGS)
+    def has_flag(self, flag: bytes) -> bool:
+        return (self.FLAGS == flag)  # -_-
 
     def as_bytes(self) -> bytes:
         pack_string = '!IIcI'

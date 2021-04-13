@@ -10,6 +10,12 @@ SYNACK_FLAG = b'\xc0'
 FIN_FLAG = b'\x20'
 FINACK_FLAG = b'\x60'
 SOCKET_TIMEOUT = 5.0
+MAX_FAIL_COUNT = 3
+
+# 1. no connection
+# 2. syn happened
+# 3. syn ack sent
+# 4. ack received -> connected
 
 
 class ConnState(Enum):
