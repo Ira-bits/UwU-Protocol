@@ -2,6 +2,7 @@
 import socket
 import select
 import threading
+from random import randint
 from threading import Timer
 
 from header import Header, Packet
@@ -12,22 +13,24 @@ from collections import deque
 
 class Server:
     def __init__(self, addr="127.0.0.1", port=8000, r_wnd_size=4):
-        self.buf_size = 1024
-        self.sock = socket.socket(
+        self.buf_size: int = 1024
+        self.sock: socket.socket = socket.socket(
             family=socket.AF_INET, type=socket.SOCK_DGRAM)
         self.sock.bind((addr, port))
 
-        self.addr = addr
-        self.port = port
+        self.addr: str = addr
+        self.port: int = port
         self.connectionState: ConnState = ConnState.NO_CONNECT
         self.receive_wind = set()
 
+        self.SEQ_NO: int = randint(12, 1234)
+        self.ACK_NO: int = 1
         # For send()
-        self.has_packet_buffer = threading.Event()
+        self.has_packet_buffer: threading.Event = threading.Event()
         self.packet_buffer = deque([])
         # self.send_buffer: None | Packet = None
 
-        self.client_loc: None
+        self.client_loc: None | tuple
 
         self.recv_thread = threading.Thread(
             target=self.receive)
@@ -76,11 +79,15 @@ class Server:
         if self.connectionState is ConnState.NO_CONNECT:
 
             if packet.header.has_flag(SYN_FLAG):
+
+                self.ACK_NO = packet.header.SEQ_NO+1
+
                 self.connectionState = ConnState.SYN
                 logServer(
                     f"SYN_ACK being sent to client at {location}")
 
-                synAckPacket = Packet(Header(1, 3000, SYNACK_FLAG))
+                synAckPacket = Packet(
+                    Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYNACK_FLAG))
                 self.sock.sendto(synAckPacket.as_bytes(), location)
                 self.connectionState = ConnState.SYNACK
 
@@ -98,7 +105,8 @@ class Server:
                 logServer(
                     f"SYN_ACK again being sent to client at {location}")
 
-                synAckPacket = Packet(Header(1, 3000, SYNACK_FLAG))
+                synAckPacket = Packet(
+                    Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYNACK_FLAG))
                 self.sock.sendto(packet.as_bytes(), location)
                 self.connectionState = ConnState.SYNACK
             else:

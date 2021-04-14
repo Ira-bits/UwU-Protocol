@@ -4,9 +4,9 @@ import struct
 
 
 class Header():
-    def __init__(self, ACK=1, SEQ=1, FLAGS=b'\x00', rwnd=4):
-        self.ACK_NO = ACK
-        self.SEQ_NO = SEQ
+    def __init__(self, ACK_NO=1, SEQ_NO=1, FLAGS=b'\x00', rwnd=4):
+        self.ACK_NO = ACK_NO
+        self.SEQ_NO = SEQ_NO
         self.FLAGS = FLAGS
         self.rwnd = rwnd
         # self.rwnd_size = rwnd if client is False else -1

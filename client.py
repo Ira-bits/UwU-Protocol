@@ -6,6 +6,7 @@ from config import *
 from threading import Timer
 import threading
 import time
+from random import randint
 from header import Header, Packet
 from collections import deque
 
@@ -24,7 +25,13 @@ class Client:
         self.has_packet_buffer = threading.Event()
         self.ack_packet_fails = 0
 
-        self.SEQ_NO = 0
+        # client
+        # 1      -> SYN
+        # 2      -> SYNACK
+        # 3001 2 -> ACK
+        # 3000
+
+        self.SEQ_NO = randint(1, 2536)
         self.ACK_NO = 1
 
         self.process_packet_thread = threading.Thread(
@@ -35,12 +42,17 @@ class Client:
         self.sendConnection()
         self.receiveLoop()
 
+    def appl_send(self):
+        pass
+
     def sendConnection(self):
         '''
         Send a SYN packet to server
         '''
+
         logClient("Starting client!")
-        initialSynPacket = Packet(Header(1, 1, FLAGS=SYN_FLAG))
+        initialSynPacket = Packet(
+            Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYN_FLAG))
         self.connectionState = ConnState.SYN
         self.sock.sendto(initialSynPacket.as_bytes(), self.server_loc)
 
@@ -48,6 +60,7 @@ class Client:
         '''
             Try to establish a connection or move across a connection state
         '''
+
         if self.connectionState is ConnState.NO_CONNECT:  # WTF
             logClient(f"Invalid state: Not connected!\n Exitting!")
             exit(1)
@@ -55,10 +68,13 @@ class Client:
         elif self.connectionState is ConnState.SYN:
             if packet.header.has_flag(SYNACK_FLAG):
 
-                self.SEQ_NO = packet.header.SEQ_NO
+                self.ACK_NO = packet.header.SEQ_NO+1
+                self.SEQ_NO = packet.header.ACK_NO
+
                 self.connectionState = ConnState.SYNACK
 
-                ackPacket = Packet(Header(1, self.SEQ_NO, ACK_FLAG))
+                ackPacket = Packet(
+                    Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=ACK_FLAG))
 
                 self.sock.sendto(ackPacket.as_bytes(), self.server_loc)
                 self.connectionState = ConnState.CONNECTED
@@ -67,7 +83,8 @@ class Client:
             elif packet.header.has_flag(SYN_FLAG):
 
                 logClient("Resending SYN Packet to server")
-                initialSynPacket = Packet(Header(1, 1, FLAGS=SYN_FLAG))
+                initialSynPacket = Packet(
+                    Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYN_FLAG))
                 self.connectionState = ConnState.SYN
                 self.sock.sendto(initialSynPacket.as_bytes(), self.server_loc)
         else:
@@ -75,18 +92,23 @@ class Client:
                 f"Expecting SYNACK flag at state SYN, got {packet.header.FLAGS}")
 
     def pushPacketToBuffer(self, packet: Packet):
+
         logClient(
             f"found packet in buffer, with flags: {bytearray(packet.header.FLAGS).hex()}")
         self.packet_buffer.append(packet)
         self.has_packet_buffer.set()
 
     def processSinglePacket(self, packet: Packet):
+
         if self.connectionState is not ConnState.CONNECTED:
             self.tryConnect(packet)
         else:
             self.processData(packet)
 
     def processPacketLoop(self):
+        '''
+            main process
+        '''
         while True:
             self.has_packet_buffer.wait()
             if len(self.packet_buffer) != 0:
@@ -94,10 +116,16 @@ class Client:
                 self.has_packet_buffer.clear()
 
     def processData(self, packet):
+        '''
+            Respond to a request from the client
+        '''
         logClient(packet.data)
         pass
 
     def handleTimeout(self):
+        '''
+            Timeouts for handshake, fin, and Selective repeat
+        '''
         if self.connectionState is not ConnState.CONNECTED:
             if self.connectionState == ConnState.SYN:
                 logClient(f"Timed out recv , cur state {self.connectionState}")
@@ -108,7 +136,8 @@ class Client:
                         f"Timed out recv when in state {self.connectionState}, expecting SYN_ACK. Giving up")
                     exit(1)
                 else:
-                    synPacket = Packet(Header(ACK=1, SEQ=1, FLAGS=SYN_FLAG))
+                    synPacket = Packet(
+                        Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYN_FLAG))
                     self.pushPacketToBuffer(synPacket)
             else:
                 logClient(f"Invalid state: {self.connectionState}")
@@ -118,6 +147,9 @@ class Client:
             pass
 
     def receiveLoop(self):
+        '''
+            Receive a packet
+        '''
         while True:
             try:
                 self.sock.settimeout(SOCKET_TIMEOUT)
