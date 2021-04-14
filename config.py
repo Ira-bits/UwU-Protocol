@@ -11,7 +11,7 @@ FIN_FLAG = b'\x20'
 FINACK_FLAG = b'\x60'
 SOCKET_TIMEOUT = 1.0
 MAX_FAIL_COUNT = 7
-PACKET_TIMEOUT = 0.1
+PACKET_TIMEOUT = 1
 
 # 1. no connection
 # 2. syn happened
@@ -24,3 +24,9 @@ class ConnState(Enum):
     SYN = 1
     SYNACK = 2
     CONNECTED = 3
+
+
+class PacketState(Enum):
+    NOT_SENT = 0
+    SENT = 1
+    ACKED = 2

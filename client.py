@@ -30,8 +30,9 @@ class Client:
         # the window
         self.window_packet_buffer = deque([])
 
+        self.has_receive_buffer = threading.Event()
+
         self.has_packet_buffer = threading.Event()
-        self.has_temp_buffer = threading.Event()
         self.has_window_buffer = threading.Event()
 
         self.ack_packet_fails = 0
@@ -84,8 +85,8 @@ class Client:
         '''
          Send packet, update window, manage time
         '''
-        # manage time
-        while len(self.window_packet_buffer) != 0 and self.window_packet_buffer[0][2] == True:
+        # manage time TODO: MOVE THIS AWAY
+        while len(self.window_packet_buffer) != 0 and self.window_packet_buffer[0][2] == PacketState.ACKED:
             self.window_packet_buffer.popleft()
         if not self.window_packet_buffer:
             logClient("Clearing packet buffer")
@@ -104,7 +105,8 @@ class Client:
             packet.header.SEQ_NO = int(seq_no)
             packet.header.ACK_NO = int(ack_no)
 
-            self.window_packet_buffer.append((packet, time.time(), False))
+            self.window_packet_buffer.append(
+                [packet, time.time(), PacketState.NOT_SENT])
 
     def tryConnect(self, packet):
         '''
@@ -149,7 +151,7 @@ class Client:
         logClient(
             f"found packet in buffer, with flags: {bytearray(packet.header.FLAGS).hex()}")
         self.receive_packet_buffer.append(packet)
-        self.has_packet_buffer.set()
+        self.has_receive_buffer.set()
 
     '''
     def pushPacketToWindow(self, packet):
@@ -171,28 +173,42 @@ class Client:
             main process
         '''
         while True:
-            logClient("Waiting on packet buffer")
-            self.has_packet_buffer.wait()
-            if len(self.receive_packet_buffer) != 0:
-                self.processSinglePacket(self.receive_packet_buffer.popleft())
-                self.has_packet_buffer.clear()
-            else:
-                if (self.temp_buffer):
-                    print("here")
-                    self.send_function()
-                for packetwrapper in self.window_packet_buffer:
-                    print("here nibba")
-                    if time.time() - packetwrapper[1] > PACKET_TIMEOUT:
-                        logClient(
-                            f"Resending Packet with SEQ#{packetwrapper[0].header.SEQ_NO} to server")
-                        self.packet.sendto(
-                            packetwrapper[0].as_bytes(), self.server_loc)
+            if self.connectionState != ConnState.CONNECTED:
+                self.has_receive_buffer.wait()  # we don't need this anymore
+                '''
+                we can read the length of the receive buffer anytime, it'll always get absolved
+                '''
+                logClient("Waiting on packet buffer")
 
-                for packetwrapper in self.window_packet_buffer:
-                    packet, _, _ = packetwrapper
-                    logClient(
-                        f"Sending Packet with SEQ#{packet.header.SEQ_NO} to server")
-                    self.sock.sendto(packet.as_bytes(), self.server_loc)
+                self.processSinglePacket(
+                    self.receive_packet_buffer.popleft())
+                self.has_receive_buffer.clear()
+            else:
+                if self.receive_packet_buffer:
+                    self.processSinglePacket(
+                        self.receive_packet_buffer.popleft())
+
+                if not self.window_packet_buffer:
+                    self.has_packet_buffer.wait()
+
+                if (self.temp_buffer):
+                    self.send_function()
+
+                for i in range(0, len(self.window_packet_buffer)):
+                    packet, timestamp, status = self.window_packet_buffer[i]
+                    if status == PacketState.NOT_SENT:
+
+                        self.window_packet_buffer[i][2] = PacketState.SENT
+                        logClient(
+                            f"Sending Packet with SEQ#{packet.header.SEQ_NO} to server")
+                        self.sock.sendto(packet.as_bytes(), self.server_loc)
+
+                    elif time.time() - timestamp > PACKET_TIMEOUT:
+                        logClient(
+                            f"Resending Packet with SEQ#{packet.header.SEQ_NO} to server")
+                        self.sock.sendto(
+                            packet.as_bytes(), self.server_loc)
+                        self.window_packet_buffer[i][1] = time.time()
 
     def processData(self, packet):
         '''
