@@ -16,21 +16,6 @@ from sortedcontainers import SortedSet
 def keySort(l: Packet):
     return l.header.SEQ_NO
 
-# ----------start-------------
-# peer1 sends: 0,1,2,3,4,5,6
-# peer2 receives: 0,5,2,6
-# peer2 ACKS: 0
-# peer1 sends again: 1
-# peer2 receives: 1
-# peer2 ACKS: 2
-# peer1 sends again: 3
-# peer2 receives: 3
-# peer2 ACKS: 3
-# peer1 sends again: 4
-# peer2 receives: 4
-# peer2 ACKS: 6
-# ----------end---------------
-
 
 class Client:
     def __init__(self, serv_addr='127.0.0.1', serv_port=8000):
@@ -82,6 +67,17 @@ class Client:
         self.receive_thread = threading.Thread(target=self.receiveLoop)
         self.receive_thread.start()
 
+    def sendConnection(self):
+        '''
+        Send a SYN packet to server
+        '''
+
+        logClient("Starting client!")
+        initialSynPacket = Packet(
+            Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYN_FLAG))
+        self.connectionState = ConnState.SYN
+        self.sock.sendto(initialSynPacket.as_bytes(), self.server_loc)
+
     def fileTransfer(self, data):
         pack_len = 600
 
@@ -97,17 +93,6 @@ class Client:
 
         self.fillWindowBuffer()
         # print("temp, ", len(self.temp_buffer))
-
-    def sendConnection(self):
-        '''
-        Send a SYN packet to server
-        '''
-
-        logClient("Starting client!")
-        initialSynPacket = Packet(
-            Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYN_FLAG))
-        self.connectionState = ConnState.SYN
-        self.sock.sendto(initialSynPacket.as_bytes(), self.server_loc)
 
     def fillWindowBuffer(self):
         '''
@@ -131,62 +116,6 @@ class Client:
         self.acquired_window_buffer.release()
         logClient("Notify WINDOW")
         self.has_window_buffer.set()
-
-    def tryConnect(self, packet):
-        '''
-            Try to establish a connection or move across a connection state
-        '''
-
-        if self.connectionState is ConnState.NO_CONNECT:  # WTF
-            logClient(f"Invalid state: Not connected!\n Exitting!")
-            exit(1)
-
-        elif self.connectionState is ConnState.SYN:
-            if packet.header.has_flag(SYNACK_FLAG):
-
-                logClient(
-                    f"Received a SYNACK packet with SEQ:{packet.header.SEQ_NO} and ACK:{packet.header.ACK_NO}")
-                self.ACK_NO = packet.header.SEQ_NO+1
-                self.SEQ_NO = packet.header.ACK_NO
-
-                self.connectionState = ConnState.SYNACK
-
-                ackPacket = Packet(
-                    Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=ACK_FLAG))
-
-                #self.sock.sendto(ackPacket.as_bytes(), self.server_loc)
-                self.connectionState = ConnState.CONNECTED
-
-                logClient("Connection established (hopefully)")
-
-            elif packet.header.has_flag(SYN_FLAG):
-
-                logClient("Resending SYN Packet to server")
-                initialSynPacket = Packet(
-                    Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYN_FLAG))
-                self.connectionState = ConnState.SYN
-                self.sock.sendto(initialSynPacket.as_bytes(), self.server_loc)
-
-            else:
-                logClient(
-                    f"Expecting SYNACK flag at state SYN, got {packet.header.FLAGS}")
-        else:
-            if packet.header.has_flag(SYNACK_FLAG):
-
-                logClient(
-                    f"Received a SYNACK packet with SEQ:{packet.header.SEQ_NO} and ACK:{packet.header.ACK_NO}")
-                self.ACK_NO = packet.header.SEQ_NO+1
-                self.SEQ_NO = packet.header.ACK_NO
-
-                self.connectionState = ConnState.SYNACK
-
-                ackPacket = Packet(
-                    Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=ACK_FLAG))
-
-                self.sock.sendto(ackPacket.as_bytes(), self.server_loc)
-                self.connectionState = ConnState.CONNECTED
-                self.has_receive_buffer.set()
-                logClient("Connection established (again, hopefully)")
 
     def pushPacketToReceiveBuffer(self, packet: Packet):
         '''
@@ -261,18 +190,6 @@ class Client:
 
                     i += 1
 
-    def processData(self, packet):
-        '''
-            Respond to a packet
-        '''
-        pass
-
-    def slideWindow(self):
-        if len(self.temp_buffer) != 0:
-            self.window_packet_buffer.append(self.temp_buffer.popleft())
-        else:
-            self.has_window_buffer.clear()
-
     def updateWindow(self, packet):
         # Handle ack packet
         if packet.header.has_flag(SYNACK_FLAG):
@@ -316,6 +233,74 @@ class Client:
                                       FLAGS=ACK_FLAG))
 
             self.sock.sendto(ackPacket.as_bytes(), self.server_loc)
+
+    def tryConnect(self, packet):
+        '''
+            Try to establish a connection or move across a connection state
+        '''
+
+        if self.connectionState is ConnState.NO_CONNECT:  # WTF
+            logClient(f"Invalid state: Not connected!\n Exitting!")
+            exit(1)
+
+        elif self.connectionState is ConnState.SYN:
+            if packet.header.has_flag(SYNACK_FLAG):
+
+                logClient(
+                    f"Received a SYNACK packet with SEQ:{packet.header.SEQ_NO} and ACK:{packet.header.ACK_NO}")
+                self.ACK_NO = packet.header.SEQ_NO+1
+                self.SEQ_NO = packet.header.ACK_NO
+
+                self.connectionState = ConnState.SYNACK
+
+                ackPacket = Packet(
+                    Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=ACK_FLAG))
+
+                self.sock.sendto(ackPacket.as_bytes(), self.server_loc)
+                self.connectionState = ConnState.CONNECTED
+
+                logClient("Connection established (hopefully)")
+
+            elif packet.header.has_flag(SYN_FLAG):
+
+                logClient("Resending SYN Packet to server")
+                initialSynPacket = Packet(
+                    Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYN_FLAG))
+                self.connectionState = ConnState.SYN
+                self.sock.sendto(initialSynPacket.as_bytes(), self.server_loc)
+
+            else:
+                logClient(
+                    f"Expecting SYNACK flag at state SYN, got {packet.header.FLAGS}")
+        else:
+            if packet.header.has_flag(SYNACK_FLAG):
+
+                logClient(
+                    f"Received a SYNACK packet with SEQ:{packet.header.SEQ_NO} and ACK:{packet.header.ACK_NO}")
+                self.ACK_NO = packet.header.SEQ_NO+1
+                self.SEQ_NO = packet.header.ACK_NO
+
+                self.connectionState = ConnState.SYNACK
+
+                ackPacket = Packet(
+                    Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=ACK_FLAG))
+
+                self.sock.sendto(ackPacket.as_bytes(), self.server_loc)
+                self.connectionState = ConnState.CONNECTED
+                self.has_receive_buffer.set()
+                logClient("Connection established (again, hopefully)")
+
+    def processData(self, packet):
+        '''
+            Respond to a packet
+        '''
+        pass
+
+    def slideWindow(self):
+        if len(self.temp_buffer) != 0:
+            self.window_packet_buffer.append(self.temp_buffer.popleft())
+        else:
+            self.has_window_buffer.clear()
 
     def handleHandshakeTimeout(self):
         '''
@@ -372,6 +357,6 @@ if __name__ == "__main__":
     client = Client()
     while client.connectionState != ConnState.CONNECTED:
         pass
-    client.fileTransfer("A"*10000)
+    client.fileTransfer("A"*1000)
     # time.sleep(0.1)
     # client.fileTransfer("A"*1000)
