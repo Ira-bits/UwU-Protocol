@@ -30,3 +30,4 @@ class PacketState(Enum):
     NOT_SENT = 0
     SENT = 1
     ACKED = 2
+    NACK = 3
