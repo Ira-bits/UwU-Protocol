@@ -214,12 +214,12 @@ class Client:
                     self.acquired_window_buffer.release()
 
                 for i in range(0, len(self.window_packet_buffer)):
-                    logClient("Waiting to acquire lock")
+                    #logClient("Waiting to acquire lock")
 
                     self.acquired_window_buffer.acquire()
-                    logClient("Acquired!")
+                    # logClient("Acquired!")
                     if(i >= len(self.window_packet_buffer)):
-                        logClient("Releasing lock")
+                        #logClient("Releasing lock")
                         self.acquired_window_buffer.release()
                         break
 
@@ -241,7 +241,7 @@ class Client:
                     elif status == PacketState.ACKED and i == 0:
                         self.window_packet_buffer.popleft()
                         self.slideWindow()
-                    logClient("Releasing lock")
+                    #logClient("Releasing lock")
                     self.acquired_window_buffer.release()
 
     def processData(self, packet):
@@ -263,10 +263,11 @@ class Client:
                 f"Received an ACK packet of SEQ_NO:{packet.header.SEQ_NO} and ACK_NO: {packet.header.ACK_NO}")
             if len(self.window_packet_buffer) != 0:
 
-                base_ack = self.window_packet_buffer[0][0].header.SEQ_NO
-                index = ack_num - base_ack - 1
-                logClient(f"Updating packet {ack_num} to ACK'd")
-                self.window_packet_buffer[index][0].status = PacketState.ACKED
+                base_seq = self.window_packet_buffer[0][0].header.SEQ_NO
+                index = ack_num - base_seq - 1
+                logClient(
+                    f"Updating packet {self.window_packet_buffer[index][0].header.SEQ_NO} to ACK'd")
+                self.window_packet_buffer[index][2] = PacketState.ACKED
 
                 if index == 0:
                     self.acquired_window_buffer.acquire()

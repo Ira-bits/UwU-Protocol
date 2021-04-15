@@ -125,6 +125,9 @@ class Server:
             seq_no = packet.header.SEQ_NO
             logServer(
                 f"Received a data packet of SEQ_NO:{packet.header.SEQ_NO} and ACK_NO: {packet.header.ACK_NO}")
+
+            logServer(
+                f"Sending ACK packet: seq_no:{self.SEQ_NO} ack_no:{seq_no+1}")
             ackPacket = Packet(Header(ACK_NO=seq_no+1,
                                       SEQ_NO=self.SEQ_NO,
                                       FLAGS=ACK_FLAG))
@@ -201,6 +204,7 @@ class Server:
             if packet.header.has_flag(ACK_FLAG):
                 self.connectionState = ConnState.CONNECTED
                 logServer(f"State changed to connected")
+                self.SEQ_NO += 1
                 self.client_loc = self.temp_loc
 
             elif packet.header.has_flag(SYN_FLAG):
