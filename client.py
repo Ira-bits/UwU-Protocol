@@ -167,9 +167,26 @@ class Client:
                 self.connectionState = ConnState.SYN
                 self.sock.sendto(initialSynPacket.as_bytes(), self.server_loc)
 
+            else:
+                logClient(
+                    f"Expecting SYNACK flag at state SYN, got {packet.header.FLAGS}")
         else:
-            logClient(
-                f"Expecting SYNACK flag at state SYN, got {packet.header.FLAGS}")
+            if packet.header.has_flag(SYNACK_FLAG):
+
+                logClient(
+                    f"Received a SYNACK packet with SEQ:{packet.header.SEQ_NO} and ACK:{packet.header.ACK_NO}")
+                self.ACK_NO = packet.header.SEQ_NO+1
+                self.SEQ_NO = packet.header.ACK_NO
+
+                self.connectionState = ConnState.SYNACK
+
+                ackPacket = Packet(
+                    Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=ACK_FLAG))
+
+                self.sock.sendto(ackPacket.as_bytes(), self.server_loc)
+                self.connectionState = ConnState.CONNECTED
+
+                logClient("Connection established (again, hopefully)")
 
     def pushPacketToReceiveBuffer(self, packet: Packet):
         '''
@@ -194,10 +211,7 @@ class Client:
         '''
         while True:
             if self.connectionState != ConnState.CONNECTED:
-                self.has_receive_buffer.wait()  # we don't need this anymore
-                '''
-                we can read the length of the receive buffer anytime, it'll always get absolved
-                '''
+                self.has_receive_buffer.wait()
                 logClient("Waiting on receive buffer")
 
                 self.processSinglePacket(
@@ -214,12 +228,12 @@ class Client:
                     self.acquired_window_buffer.release()
 
                 for i in range(0, len(self.window_packet_buffer)):
-                    #logClient("Waiting to acquire lock")
+                    # logClient("Waiting to acquire lock")
 
                     self.acquired_window_buffer.acquire()
                     # logClient("Acquired!")
                     if(i >= len(self.window_packet_buffer)):
-                        #logClient("Releasing lock")
+                        # logClient("Releasing lock")
                         self.acquired_window_buffer.release()
                         break
 
@@ -241,7 +255,7 @@ class Client:
                     elif status == PacketState.ACKED and i == 0:
                         self.window_packet_buffer.popleft()
                         self.slideWindow()
-                    #logClient("Releasing lock")
+                    # logClient("Releasing lock")
                     self.acquired_window_buffer.release()
 
     def processData(self, packet):
@@ -253,10 +267,17 @@ class Client:
     def slideWindow(self):
         if len(self.temp_buffer) != 0:
             self.window_packet_buffer.append(self.temp_buffer.popleft())
+        else:
+            self.has_window_buffer.clear()
 
     def updateWindow(self, packet):
         # Handle ack packet
-        if packet.header.has_flag(ACK_FLAG):
+        if packet.header.has_flag(SYNACK_FLAG):
+            self.has_window_buffer.set()  # To allow client to read from receive buffer
+            self.tryConnect(packet)
+            self.has_window_buffer.clear()
+
+        elif packet.header.has_flag(ACK_FLAG):
 
             ack_num = packet.header.ACK_NO
             logClient(
@@ -269,14 +290,15 @@ class Client:
                     f"Updating packet {self.window_packet_buffer[index][0].header.SEQ_NO} to ACK'd")
                 self.window_packet_buffer[index][2] = PacketState.ACKED
 
+                '''
                 if index == 0:
                     self.acquired_window_buffer.acquire()
                     self.window_packet_buffer.popleft()
                     self.slideWindow()
                     self.acquired_window_buffer.release()
-
-            if len(self.window_packet_buffer) == 0:
-                self.has_window_buffer.clear()
+                if len(self.window_packet_buffer) == 0:
+                    self.has_window_buffer.clear()
+                '''
 
         # Handle data packet
         else:
@@ -284,7 +306,7 @@ class Client:
             self.received_data_packets.add(packet)
             seq_no = packet.header.SEQ_NO
             logClient(
-                f"Received an DATA packet of SEQ_NO:{packet.header.SEQ_NO} and ACK_NO: {packet.header.ACK_NO}")
+                f"Received a DATA packet of SEQ_NO:{packet.header.SEQ_NO} and ACK_NO: {packet.header.ACK_NO}")
             ackPacket = Packet(Header(ACK_NO=seq_no+1,
                                       SEQ_NO=self.SEQ_NO,
                                       FLAGS=ACK_FLAG))

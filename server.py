@@ -65,14 +65,13 @@ class Server:
             self.SEQ_NO += 1
             seq_no = self.SEQ_NO.__str__()
             ack_no = self.ACK_NO.__str__()
-            logClient(self.SEQ_NO)
 
             packet.header.SEQ_NO = int(seq_no)
             packet.header.ACK_NO = int(ack_no)
 
             self.window_packet_buffer.append(
                 [packet, time.time(), PacketState.NOT_SENT])
-        logClient("NOTIFY WINDOW")
+        logServer("NOTIFY WINDOW")
         self.has_window_buffer.set()
 
     def pushPacketToReceiveBuffer(self, packet: Packet, location: tuple):
@@ -167,20 +166,20 @@ class Server:
 
                     if status == PacketState.NOT_SENT:
                         self.window_packet_buffer[i][2] = PacketState.SENT
-                        logClient(
+                        logServer(
                             f"Sending Packet with SEQ#{packet.header.SEQ_NO} to server")
                         self.sock.sendto(packet.as_bytes(), self.client_loc)
 
                     elif status == PacketState.SENT:
                         if time.time() - timestamp > PACKET_TIMEOUT:
-                            logClient(
+                            logServer(
                                 f"Resending Packet with SEQ#{packet.header.SEQ_NO} to server")
                             self.sock.sendto(
                                 packet.as_bytes(), self.client_loc)
                             self.window_packet_buffer[i][1] = time.time()
 
     def tryConnect(self, packet: Packet):
-        if self.connectionState is ConnState.NO_CONNECT:
+        if self.connectionState == ConnState.SYN:
 
             if packet.header.has_flag(SYN_FLAG):
 
@@ -197,7 +196,7 @@ class Server:
 
             else:
                 logServer(
-                    f"Expected SYN_FLAG with NO_CONNECT state, got {packet.header.FLAGS} instead")
+                    f"Expected SYN_FLAG with NO_CONNECT state, got {bytearray(packet.header.FLAGS).hex()} instead")
 
         elif self.connectionState is ConnState.SYNACK:
 
@@ -208,17 +207,24 @@ class Server:
                 self.client_loc = self.temp_loc
 
             elif packet.header.has_flag(SYN_FLAG):
-                self.connectionState = ConnState.SYN
+                #self.connectionState = ConnState.SYN
                 logServer(
-                    f"SYN_ACK again being sent to client at {self.client_loc}")
+                    f"SYN_ACK again being sent to client at {self.temp_loc}")
 
                 synAckPacket = Packet(
                     Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYNACK_FLAG))
-                self.sock.sendto(packet.as_bytes(), self.client_loc)
+                self.sock.sendto(synAckPacket.as_bytes(), self.temp_loc)
                 self.connectionState = ConnState.SYNACK
+
+            elif packet.header.has_flag(SYNACK_FLAG):
+                logServer(
+                    f"SYN_ACK again being sent to client at {self.temp_loc}")
+                self.sock.sendto(packet.as_bytes(), self.temp_loc)
+                self.connectionState = ConnState.SYNACK
+
             else:
                 logServer(
-                    f"Expected ACK_FLAG with SYNACK state, got {packet.header.FLAGS} instead")
+                    f"Expected ACK_FLAG with SYNACK state, got {bytearray(packet.header.FLAGS).hex()} instead")
         else:
             logServer(f"Invalid state {self.connectionState}")
 
@@ -228,20 +234,20 @@ class Server:
         '''
         if self.connectionState is not ConnState.CONNECTED:
             if self.connectionState == ConnState.SYNACK:
-                logClient(f"Timed out recv , cur state {self.connectionState}")
+                logServer(f"Timed out recv , cur state {self.connectionState}")
                 self.synack_packet_fails += 1
 
                 if self.synack_packet_fails >= MAX_FAIL_COUNT:
                     logServer(
                         f"Timed out recv when in state {self.connectionState}, expecting ACK. Giving up")
                     self.temp_loc = None
-                    self.connectionState == ConnState.NO_CONNECT
+                    self.connectionState = ConnState.NO_CONNECT
                 else:
-                    synPacket = Packet(
+                    synAckPacket = Packet(
                         Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYNACK_FLAG))
-                    self.pushPacketToReceiveBuffer(synackPacket, location)
+                    self.pushPacketToReceiveBuffer(synAckPacket, self.temp_loc)
             else:
-                logServer(f"Invalid state: {self.connectionState}")
+                logServer(f"Invalid state at timeout: {self.connectionState}")
                 exit(1)
         else:
             # FIN ...
@@ -264,7 +270,7 @@ class Server:
                 self.handleHandshakeTimeout()
             '''
             try:
-                if(self.connectionState == ConnState.SYNACK):
+                if(self.connectionState != ConnState.CONNECTED and self.connectionState != ConnState.NO_CONNECT):
                     self.sock.settimeout(SOCKET_TIMEOUT)
                 else:
                     self.sock.settimeout(None)
@@ -275,7 +281,14 @@ class Server:
                     message = None
 
                 if self.connectionState != ConnState.CONNECTED:
-                    self.pushPacketToReceiveBuffer(packet, location)
+                    if(packet is not None):
+                        if(packet.header.has_flag(SYNACK_FLAG) or packet.header.has_flag(ACK_FLAG)):
+                            self.connectionState = ConnState.SYNACK
+                        else:
+                            self.connectionState = ConnState.SYN
+
+                        self.pushPacketToReceiveBuffer(packet, location)
+                        packet = None
                 else:
                     self.updateWindow(packet)
 
