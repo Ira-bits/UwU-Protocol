@@ -10,6 +10,11 @@ from random import randint
 from header import Header, Packet
 from collections import deque
 import copy
+from sortedcontainers import SortedSet
+
+
+def keySort(l: Packet):
+    return l.header.SEQ_NO
 
 
 class Client:
@@ -32,10 +37,11 @@ class Client:
 
         self.has_receive_buffer = threading.Event()
 
-        self.has_packet_buffer = threading.Event()
         self.has_window_buffer = threading.Event()
 
         self.ack_packet_fails = 0
+
+        self.received_data_packets SortedSet([], key=keySort)
 
         # client
         # 1      -> SYN
@@ -43,8 +49,13 @@ class Client:
         # 3001 2 -> ACK
         # 3000
 
+        # Current sequence number stored by the client
         self.SEQ_NO = randint(1, 2536)
+
+        # Current ack number stored by the client
         self.ACK_NO = 1
+
+        self.BASE_RECEIVED_PACKET_SEQ_NO = -1
 
         self.process_packet_thread = threading.Thread(
             target=self.processPacketLoop)
@@ -55,7 +66,7 @@ class Client:
         self.receive_thread = threading.Thread(target=self.receiveLoop)
         self.receive_thread.start()
 
-    def appl_send(self, data):
+    def fileTransfer(self, data):
         pack_len = 600
 
         if(len(data) > 600):
@@ -68,7 +79,7 @@ class Client:
         for packet in packets:
             self.temp_buffer.append(packet)
         #print("temp, ", len(self.temp_buffer))
-        self.has_packet_buffer.set()
+        self.has_window_buffer.set()
 
     def sendConnection(self):
         '''
@@ -81,16 +92,16 @@ class Client:
         self.connectionState = ConnState.SYN
         self.sock.sendto(initialSynPacket.as_bytes(), self.server_loc)
 
-    def send_function(self):
+    def fillWindowBuffer(self):
         '''
-         Send packet, update window, manage time
+         Update window, manage time
         '''
         # manage time TODO: MOVE THIS AWAY
         while len(self.window_packet_buffer) != 0 and self.window_packet_buffer[0][2] == PacketState.ACKED:
             self.window_packet_buffer.popleft()
         if not self.window_packet_buffer:
             logClient("Clearing packet buffer")
-            self.has_packet_buffer.clear()
+            self.has_window_buffer.clear()
 
         while (len(self.window_packet_buffer) < self.rwnd_size):
             if(not self.temp_buffer):
@@ -189,33 +200,90 @@ class Client:
                         self.receive_packet_buffer.popleft())
 
                 if not self.window_packet_buffer:
-                    self.has_packet_buffer.wait()
+                    self.has_window_buffer.wait()
 
                 if (self.temp_buffer):
-                    self.send_function()
+                    self.fillWindowBuffer()
 
+# ----------start-------------
+# peer1 sends: 0,1,2,3,4,5,6
+# peer2 receives: 0,5,2,6
+# peer2 ACKS: 0
+# peer1 sends again: 1
+# peer2 receives: 1
+# peer2 ACKS: 2
+# peer1 sends again: 3
+# peer2 receives: 3
+# peer2 ACKS: 3
+# peer1 sends again: 4
+# peer2 receives: 4
+# peer2 ACKS: 6
+# ----------end---------------
                 for i in range(0, len(self.window_packet_buffer)):
                     packet, timestamp, status = self.window_packet_buffer[i]
                     if status == PacketState.NOT_SENT:
-
                         self.window_packet_buffer[i][2] = PacketState.SENT
                         logClient(
                             f"Sending Packet with SEQ#{packet.header.SEQ_NO} to server")
                         self.sock.sendto(packet.as_bytes(), self.server_loc)
 
-                    elif time.time() - timestamp > PACKET_TIMEOUT:
-                        logClient(
-                            f"Resending Packet with SEQ#{packet.header.SEQ_NO} to server")
-                        self.sock.sendto(
-                            packet.as_bytes(), self.server_loc)
-                        self.window_packet_buffer[i][1] = time.time()
+                    elif status == PacketState.SENT:
+                        if time.time() - timestamp > PACKET_TIMEOUT:
+                            logClient(
+                                f"Resending Packet with SEQ#{packet.header.SEQ_NO} to server")
+                            self.sock.sendto(
+                                packet.as_bytes(), self.server_loc)
+                            self.window_packet_buffer[i][1] = time.time()
 
-    def processData(self, packet):
+                    elif status == PacketState.ACKED:
+                        logClient("Acked packed still in send window!")
+
+
+'''
+    def getLastInOrderDataPacketSeqNum(self) -> int:
+        if len(self.receive_packet_buffer) == 0:
+            return 0
+
+        seq = self.ACK_NO  # very firt packet is ack number
+
+        for i in range(1, len(self.receive_packet_buffer)):
+            curr_seq = self.receive_packet_buffer[i].header.SEQ_NO
+            if curr_seq != i+1:
+                return seq
+            else:
+                seq += 1
+
+        return seq
+'''
+
+   def processData(self, packet):
         '''
             Respond to a packet
         '''
-        logClient(packet.data)
-        pass
+
+        # Handle ack packet
+        if packet.header.has_flag(ACK_FLAG):
+            ack_num = packet.header.ACK_NO
+            while len(self.window_packet_buffer) \
+                    and self.window_packet_buffer[0].header.ACK_NO <= ack_num:
+                self.window_packet_buffer.popleft()
+
+            if len(self.window_packet_buffer) == 0:
+                self.has_window_buffer.clear()
+
+        # Handle data packet
+        else:
+            self.received_data_packets.add(packet)
+            seq_no = packet.header.SEQ_NO
+            if self.ACK_NO+1 == seq_no:
+                # Data packet arrived in order
+                ackPacket = Packet(
+                    Header(ACK_NO=seq_no+1, SEQ_NO=self.SEQ_NO, FLAGS=ACK_FLAG))
+                self.sock.sendto(ackPacket.as_bytes(), self.server_loc)
+            else:
+                # Data packet arrived out of order.
+                # ACK the last received packet (self.ACK_NO)
+                self.receive_packet_buffer[0]
 
     def handleTimeout(self):
         '''
@@ -264,4 +332,4 @@ if __name__ == "__main__":
     while client.connectionState != ConnState.CONNECTED:
         pass
     time.sleep(0.1)
-    client.appl_send("A"*1000)
+    client.fileTransfer("A"*1000)
