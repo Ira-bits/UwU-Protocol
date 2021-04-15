@@ -154,7 +154,7 @@ class Client:
                 ackPacket = Packet(
                     Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=ACK_FLAG))
 
-                self.sock.sendto(ackPacket.as_bytes(), self.server_loc)
+                #self.sock.sendto(ackPacket.as_bytes(), self.server_loc)
                 self.connectionState = ConnState.CONNECTED
 
                 logClient("Connection established (hopefully)")
@@ -185,7 +185,7 @@ class Client:
 
                 self.sock.sendto(ackPacket.as_bytes(), self.server_loc)
                 self.connectionState = ConnState.CONNECTED
-
+                self.has_receive_buffer.set()
                 logClient("Connection established (again, hopefully)")
 
     def pushPacketToReceiveBuffer(self, packet: Packet):
@@ -211,11 +211,11 @@ class Client:
         '''
         while True:
             if self.connectionState != ConnState.CONNECTED:
-                self.has_receive_buffer.wait()
                 logClient("Waiting on receive buffer")
-
-                self.processSinglePacket(
-                    self.receive_packet_buffer.popleft())
+                self.has_receive_buffer.wait()
+                if len(self.receive_packet_buffer) != 0:
+                    self.processSinglePacket(
+                        self.receive_packet_buffer.popleft())
                 self.has_receive_buffer.clear()
             else:
 
@@ -227,23 +227,23 @@ class Client:
                 else:
                     self.acquired_window_buffer.release()
 
-                for i in range(0, len(self.window_packet_buffer)):
+                i = 0
+                while i < len(self.window_packet_buffer):
                     # logClient("Waiting to acquire lock")
 
-                    self.acquired_window_buffer.acquire()
                     # logClient("Acquired!")
                     if(i >= len(self.window_packet_buffer)):
                         # logClient("Releasing lock")
-                        self.acquired_window_buffer.release()
+                        # self.acquired_window_buffer.release()
                         break
 
+                    self.acquired_window_buffer.acquire()
                     packet, timestamp, status = self.window_packet_buffer[i]
                     if status == PacketState.NOT_SENT:
                         self.window_packet_buffer[i][2] = PacketState.SENT
                         logClient(
                             f"Sending Packet with SEQ#{packet.header.SEQ_NO} to server")
                         self.sock.sendto(packet.as_bytes(), self.server_loc)
-
                     elif status == PacketState.SENT:
                         if time.time() - timestamp > PACKET_TIMEOUT:
                             logClient(
@@ -254,9 +254,12 @@ class Client:
 
                     elif status == PacketState.ACKED and i == 0:
                         self.window_packet_buffer.popleft()
+                        i -= 1
                         self.slideWindow()
-                    # logClient("Releasing lock")
                     self.acquired_window_buffer.release()
+                    # logClient("Releasing lock")
+
+                    i += 1
 
     def processData(self, packet):
         '''
@@ -283,13 +286,14 @@ class Client:
             logClient(
                 f"Received an ACK packet of SEQ_NO:{packet.header.SEQ_NO} and ACK_NO: {packet.header.ACK_NO}")
             if len(self.window_packet_buffer) != 0:
-
+                self.acquired_window_buffer.acquire()
+                logClient("acquired lock")
                 base_seq = self.window_packet_buffer[0][0].header.SEQ_NO
                 index = ack_num - base_seq - 1
                 logClient(
                     f"Updating packet {self.window_packet_buffer[index][0].header.SEQ_NO} to ACK'd")
                 self.window_packet_buffer[index][2] = PacketState.ACKED
-
+                self.acquired_window_buffer.release()
                 '''
                 if index == 0:
                     self.acquired_window_buffer.acquire()
@@ -368,7 +372,6 @@ if __name__ == "__main__":
     client = Client()
     while client.connectionState != ConnState.CONNECTED:
         pass
-    time.sleep(0.1)
-    client.fileTransfer("A"*1000)
-    time.sleep(0.1)
-    client.fileTransfer("A"*1000)
+    client.fileTransfer("A"*10000)
+    # time.sleep(0.1)
+    # client.fileTransfer("A"*1000)

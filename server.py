@@ -225,6 +225,12 @@ class Server:
             else:
                 logServer(
                     f"Expected ACK_FLAG with SYNACK state, got {bytearray(packet.header.FLAGS).hex()} instead")
+                logServer(
+                    f"SYN_ACK again being sent to client at {self.temp_loc}")
+                synAckPacket = Packet(
+                    Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYNACK_FLAG))
+                self.sock.sendto(synAckPacket.as_bytes(), self.temp_loc)
+                self.connectionState = ConnState.SYNACK
         else:
             logServer(f"Invalid state {self.connectionState}")
 
@@ -282,10 +288,10 @@ class Server:
 
                 if self.connectionState != ConnState.CONNECTED:
                     if(packet is not None):
-                        if(packet.header.has_flag(SYNACK_FLAG) or packet.header.has_flag(ACK_FLAG)):
-                            self.connectionState = ConnState.SYNACK
-                        else:
+                        if(packet.header.has_flag(SYN_FLAG)):
                             self.connectionState = ConnState.SYN
+                        else:
+                            self.connectionState = ConnState.SYNACK
 
                         self.pushPacketToReceiveBuffer(packet, location)
                         packet = None
