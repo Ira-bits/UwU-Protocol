@@ -4,11 +4,11 @@ import struct
 
 
 class Header():
-    def __init__(self, ACK_NO=1, SEQ_NO=1, FLAGS=b'\x00', rwnd=4):
+    def __init__(self, ACK_NO=1, SEQ_NO=1, FLAGS=b'\x00', rwnd_rem=4):
         self.ACK_NO = ACK_NO
         self.SEQ_NO = SEQ_NO
         self.FLAGS = FLAGS
-        self.rwnd = rwnd
+        self.rwnd = rwnd_rem
         # self.rwnd_size = rwnd if client is False else -1
 
     def has_flag(self, flag: bytes) -> bool:
@@ -33,11 +33,11 @@ class Packet():
         ACK_NO = int.from_bytes(raw_packet[0:4], byteorder="big")
         SEQ_NO = int.from_bytes(raw_packet[4:8], byteorder="big")
         FLAGS = bytes([raw_packet[8]])
-        rwnd_size = int.from_bytes(
+        rwnd_rem = int.from_bytes(
             raw_packet[9:13], byteorder="big", signed=True)
         data = bytes(raw_packet[13:])
 
-        self.header = Header(ACK_NO, SEQ_NO, FLAGS, rwnd_size)
+        self.header = Header(ACK_NO, SEQ_NO, FLAGS, rwnd_rem)
         self.data = data
 
     def as_bytes(self) -> bytes:
