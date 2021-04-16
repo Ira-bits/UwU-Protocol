@@ -335,9 +335,10 @@ if __name__ == "__main__":
     while serv.connectionState != ConnState.CONNECTED:
         pass
     #print("Hey: ")
-    #a = ""
-    # for i in serv.received_data_packets:
-    #    a += i.data.decode('utf-8')
-    #    #print(i.data.decode('utf-8'), end="")
-    # print(len(a))
     serv.fileTransfer("A"*1000)
+    time.sleep(30)
+    a = ""
+    for i in serv.received_data_packets:
+        a += i.data.decode('utf-8')
+        #print(i.data.decode('utf-8'), end="")
+    print(len(a))

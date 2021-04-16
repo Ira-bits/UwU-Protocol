@@ -78,6 +78,12 @@ class Client:
         self.connectionState = ConnState.SYN
         self.sock.sendto(initialSynPacket.as_bytes(), self.server_loc)
 
+    def closeConnection(self):
+        '''
+        Send a FIN packet to server
+        '''
+        logClient("Goodbye  :'(")
+
     def fileTransfer(self, data):
         pack_len = 600
 
@@ -233,6 +239,8 @@ class Client:
             seq_no = packet.header.SEQ_NO
             logClient(
                 f"Received a DATA packet of SEQ_NO:{packet.header.SEQ_NO} and ACK_NO: {packet.header.ACK_NO}")
+            logClient(
+                f"Sending ACK packet: seq_no:{self.SEQ_NO} ack_no:{seq_no+1}")
             ackPacket = Packet(Header(ACK_NO=seq_no+1,
                                       SEQ_NO=self.SEQ_NO,
                                       FLAGS=ACK_FLAG))
@@ -362,7 +370,7 @@ if __name__ == "__main__":
     client = Client()
     while client.connectionState != ConnState.CONNECTED:
         pass
-    # client.fileTransfer("A"*1000)
+    client.fileTransfer("A"*1000)
     # time.sleep(0.1)
     # client.fileTransfer("A"*1000)
     time.sleep(30)
