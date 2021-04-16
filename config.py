@@ -11,7 +11,7 @@ FIN_FLAG = b'\x20'
 FINACK_FLAG = b'\x60'
 SOCKET_TIMEOUT = 1.0
 MAX_FAIL_COUNT = 7
-PACKET_TIMEOUT = 1
+PACKET_TIMEOUT = 0.5
 
 # 1. no connection
 # 2. syn happened

@@ -28,6 +28,12 @@ class Packet():
             self.data = data
             self.len = len(variable.as_bytes()) + len(data)
 
+    def __hash__(self):
+        return hash(self.header.SEQ_NO)
+
+    def __eq__(self, other):
+        return other.header.SEQ_NO == self.header.SEQ_NO
+
     def strip_packet(self, raw_packet: bytes):
         # network = big endian
         ACK_NO = int.from_bytes(raw_packet[0:4], byteorder="big")
