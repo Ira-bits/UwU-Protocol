@@ -9,6 +9,7 @@ from header import Header, Packet
 from lib import logServer, setupLogging
 from config import *
 from collections import deque
+import time
 
 
 def keySort(l: Packet):
@@ -17,6 +18,9 @@ def keySort(l: Packet):
 
 class Server:
     def __init__(self, addr="127.0.0.1", port=8000, r_wnd_size=4):
+
+        self.appl_data = []
+
         self.buf_size: int = 1024
         self.sock: socket.socket = socket.socket(
             family=socket.AF_INET, type=socket.SOCK_DGRAM)
@@ -29,6 +33,9 @@ class Server:
         self.temp_loc = None
         self.client_loc = None
 
+        self.temp_buffer = deque([])
+        self.rwnd_size = 100
+
         self.received_data_packets = SortedSet([], key=keySort)
 
         self.synack_packet_fails = 0
@@ -38,6 +45,7 @@ class Server:
         # For send()
         self.has_receive_buffer: threading.Event = threading.Event()
         self.has_window_buffer: threading.Event = threading.Event()
+        self.acquired_window_buffer = threading.Lock()
 
         self.receive_packet_buffer = deque([])
         self.window_packet_buffer = deque([])
@@ -50,7 +58,9 @@ class Server:
 
         # start a receive process
         self.recv_thread.start()
-        self.processPacketLoop()
+        self.process_packet_thread = threading.Thread(
+            target=self.processPacketLoop)
+        self.process_packet_thread.start()
 
     def fileTransfer(self, data):
         pack_len = 600
@@ -72,7 +82,7 @@ class Server:
         '''
          Update window, manage time
         '''
-
+        self.acquired_window_buffer.acquire()
         while (len(self.window_packet_buffer) < self.rwnd_size):
             if(not self.temp_buffer):
                 break
@@ -87,6 +97,7 @@ class Server:
 
             self.window_packet_buffer.append(
                 [packet, time.time(), PacketState.NOT_SENT])
+        self.acquired_window_buffer.release()
         logServer("NOTIFY WINDOW")
         self.has_window_buffer.set()
 
@@ -136,7 +147,9 @@ class Server:
                     logServer("Waiting on window")
                     self.has_window_buffer.wait()
 
-                for i in range(0, len(self.window_packet_buffer)):
+                i = 0
+                while i < len(self.window_packet_buffer):
+                    self.acquired_window_buffer.acquire()
                     packet, timestamp, status = self.window_packet_buffer[i]
 
                     if status == PacketState.NOT_SENT:
@@ -153,6 +166,14 @@ class Server:
                                 packet.as_bytes(), self.client_loc)
                             self.window_packet_buffer[i][1] = time.time()
 
+                    elif status == PacketState.ACKED and i == 0:
+                        self.window_packet_buffer.popleft()
+                        i -= 1
+                        self.slideWindow()
+                    self.acquired_window_buffer.release()
+                    # logClient("Releasing lock")
+                    i += 1
+
     def updateWindow(self, packet):
         # Handle ack packet
         if packet.header.has_flag(ACK_FLAG):
@@ -161,17 +182,13 @@ class Server:
             logServer(
                 f"Received an ACK packet of SEQ_NO:{packet.header.SEQ_NO} and ACK_NO: {packet.header.ACK_NO}")
             if len(self.window_packet_buffer) != 0:
-
-                base_ack = self.window_packet_buffer[0][0].header.ACK_NO
-                index = ack_num - base_ack
-                self.window_packet_buffer[index][0].status = ACK
-
-                if index == 0:
-                    self.window_packet_buffer.popleft()
-                    self.slideWindow()
-
-            if len(self.window_packet_buffer) == 0:
-                self.has_window_buffer.clear()
+                self.acquired_window_buffer.acquire()
+                base_seq = self.window_packet_buffer[0][0].header.SEQ_NO
+                index = ack_num - base_seq - 1
+                logServer(
+                    f"Updating packet {self.window_packet_buffer[index][0].header.SEQ_NO} to ACK'd")
+                self.window_packet_buffer[index][2] = PacketState.ACKED
+                self.acquired_window_buffer.release()
 
         # Handle data packet
         else:
@@ -313,4 +330,14 @@ class Server:
 
 if __name__ == "__main__":
     setupLogging()
-    Server()
+    serv = Server()
+    time.sleep(10)
+    while serv.connectionState != ConnState.CONNECTED:
+        pass
+    #print("Hey: ")
+    #a = ""
+    # for i in serv.received_data_packets:
+    #    a += i.data.decode('utf-8')
+    #    #print(i.data.decode('utf-8'), end="")
+    # print(len(a))
+    serv.fileTransfer("A"*1000)

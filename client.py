@@ -140,8 +140,10 @@ class Client:
         '''
         while True:
             if self.connectionState != ConnState.CONNECTED:
+                # Connection Packet
                 logClient("Waiting on receive buffer")
                 self.has_receive_buffer.wait()
+                # Sanity check
                 if len(self.receive_packet_buffer) != 0:
                     self.processSinglePacket(
                         self.receive_packet_buffer.popleft())
@@ -161,13 +163,16 @@ class Client:
                     # logClient("Waiting to acquire lock")
 
                     # logClient("Acquired!")
+                    '''
                     if(i >= len(self.window_packet_buffer)):
                         # logClient("Releasing lock")
                         # self.acquired_window_buffer.release()
                         break
+                    '''
 
                     self.acquired_window_buffer.acquire()
                     packet, timestamp, status = self.window_packet_buffer[i]
+
                     if status == PacketState.NOT_SENT:
                         self.window_packet_buffer[i][2] = PacketState.SENT
                         logClient(
@@ -191,7 +196,7 @@ class Client:
                     i += 1
 
     def updateWindow(self, packet):
-        # Handle ack packet
+        # Handle synack packet
         if packet.header.has_flag(SYNACK_FLAG):
             self.has_window_buffer.set()  # To allow client to read from receive buffer
             self.tryConnect(packet)
@@ -357,6 +362,12 @@ if __name__ == "__main__":
     client = Client()
     while client.connectionState != ConnState.CONNECTED:
         pass
-    client.fileTransfer("A"*1000)
+    # client.fileTransfer("A"*1000)
     # time.sleep(0.1)
     # client.fileTransfer("A"*1000)
+    time.sleep(30)
+    a = ""
+    for i in client.received_data_packets:
+        a += i.data.decode('utf-8')
+        #print(i.data.decode('utf-8'), end="")
+    print(len(a))
