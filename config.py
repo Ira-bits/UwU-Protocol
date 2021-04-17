@@ -25,10 +25,12 @@ class ConnState(Enum):
     SYN = 1
     SYNACK = 2
     CONNECTED = 3
-    FIN_WAIT_1 = 4
-    FIN_WAIT_2 = 5
-    TIME_WAIT = 6
-    CLOSED = 7
+    FIN_WAIT = 4
+    CLOSE_WAIT = 5
+    CLOSED = 6
+
+
+CONNECTED_STATES = [ConnState.CONNECTED, ConnState.FIN_WAIT, ConnState.CLOSE_WAIT]
 
 
 class PacketState(Enum):
