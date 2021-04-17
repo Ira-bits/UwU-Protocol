@@ -18,9 +18,8 @@ def keySort(l: Packet):
 
 
 class Client:
-    def __init__(self, serv_addr='127.0.0.1', serv_port=8000):
-        self.sock = socket.socket(family=socket.AF_INET,
-                                  type=socket.SOCK_DGRAM)
+    def __init__(self, serv_addr="127.0.0.1", serv_port=8000):
+        self.sock = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 
         self.rwnd_size = 100
         self.buf_size = 1024
@@ -44,12 +43,8 @@ class Client:
 
         self.received_data_packets = SortedSet([], key=keySort)
 
-        # client
-        # 1      -> SYN
-        # 2      -> SYNACK
-        # 3001 2 -> ACK
-        # 3000
-
+        self.can_proceed_fin = threading.Event()
+        self.can_proceed_fin.set()  # Setting initial value to True
         # Current sequence number stored by the client
         self.SEQ_NO = randint(1, 2536)
 
@@ -58,8 +53,7 @@ class Client:
 
         self.BASE_RECEIVED_PACKET_SEQ_NO = -1
 
-        self.process_packet_thread = threading.Thread(
-            target=self.processPacketLoop)
+        self.process_packet_thread = threading.Thread(target=self.processPacketLoop)
 
         self.process_packet_thread.start()
 
@@ -68,28 +62,26 @@ class Client:
         self.receive_thread.start()
 
     def sendConnection(self):
-        '''
+        """
         Send a SYN packet to server
-        '''
+        """
 
         logClient("Starting client!")
         initialSynPacket = Packet(
-            Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYN_FLAG))
+            Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYN_FLAG)
+        )
         self.connectionState = ConnState.SYN
         self.sock.sendto(initialSynPacket.as_bytes(), self.server_loc)
 
-    def closeConnection(self):
-        '''
-        Send a FIN packet to server
-        '''
-        logClient("Goodbye  :'(")
-
     def fileTransfer(self, data):
+        self.can_proceed_fin.clear()  # To enforce fin only after complete transfer
         pack_len = 600
 
-        if(len(data) > 600):
-            packets = [Packet(Header(), data[i:min(i+pack_len, len(data))].encode())
-                       for i in range(0, len(data), pack_len)]
+        if len(data) > 600:
+            packets = [
+                Packet(Header(), data[i : min(i + pack_len, len(data))].encode())
+                for i in range(0, len(data), pack_len)
+            ]
             # print("Number of packets: ", len(packets))
         else:
             packets = [data]
@@ -101,12 +93,12 @@ class Client:
         # print("temp, ", len(self.temp_buffer))
 
     def fillWindowBuffer(self):
-        '''
-         Update window, manage time
-        '''
+        """
+        Update window, manage time
+        """
         self.acquired_window_buffer.acquire()
-        while (len(self.window_packet_buffer) < self.rwnd_size):
-            if(not self.temp_buffer):
+        while len(self.window_packet_buffer) < self.rwnd_size:
+            if not self.temp_buffer:
                 break
             packet = self.temp_buffer.popleft()
 
@@ -118,18 +110,20 @@ class Client:
             packet.header.ACK_NO = int(ack_no)
 
             self.window_packet_buffer.append(
-                [packet, time.time(), PacketState.NOT_SENT])
+                [packet, time.time(), PacketState.NOT_SENT]
+            )
         self.acquired_window_buffer.release()
         logClient("Notify WINDOW")
         self.has_window_buffer.set()
 
     def pushPacketToReceiveBuffer(self, packet: Packet):
-        '''
-            push a packet to the "received" buffer
-        '''
+        """
+        push a packet to the "received" buffer
+        """
 
         logClient(
-            f"found packet in buffer, with flags: {bytearray(packet.header.FLAGS).hex()}")
+            f"found packet in buffer, with flags: {bytearray(packet.header.FLAGS).hex()}"
+        )
         self.receive_packet_buffer.append(packet)
         self.has_receive_buffer.set()
 
@@ -141,24 +135,24 @@ class Client:
             self.processData(packet)
 
     def processPacketLoop(self):
-        '''
-            main process
-        '''
-        while True:
+        """
+        main process
+        """
+        while self.connectionState != ConnState.CLOSED:
             if self.connectionState != ConnState.CONNECTED:
                 # Connection Packet
                 logClient("Waiting on receive buffer")
                 self.has_receive_buffer.wait()
                 # Sanity check
                 if len(self.receive_packet_buffer) != 0:
-                    self.processSinglePacket(
-                        self.receive_packet_buffer.popleft())
+                    self.processSinglePacket(self.receive_packet_buffer.popleft())
                 self.has_receive_buffer.clear()
             else:
 
                 self.acquired_window_buffer.acquire()
                 if not self.window_packet_buffer:
                     self.acquired_window_buffer.release()
+                    self.has_window_buffer.clear()
                     logClient("Waiting on window")
                     self.has_window_buffer.wait()
                 else:
@@ -169,12 +163,12 @@ class Client:
                     # logClient("Waiting to acquire lock")
 
                     # logClient("Acquired!")
-                    '''
+                    """
                     if(i >= len(self.window_packet_buffer)):
                         # logClient("Releasing lock")
                         # self.acquired_window_buffer.release()
                         break
-                    '''
+                    """
 
                     self.acquired_window_buffer.acquire()
                     packet, timestamp, status = self.window_packet_buffer[i]
@@ -182,20 +176,24 @@ class Client:
                     if status == PacketState.NOT_SENT:
                         self.window_packet_buffer[i][2] = PacketState.SENT
                         logClient(
-                            f"Sending Packet with SEQ#{packet.header.SEQ_NO} to server")
+                            f"Sending Packet with SEQ#{packet.header.SEQ_NO} to server"
+                        )
                         self.sock.sendto(packet.as_bytes(), self.server_loc)
                     elif status == PacketState.SENT:
                         if time.time() - timestamp > PACKET_TIMEOUT:
                             logClient(
-                                f"Resending Packet with SEQ#{packet.header.SEQ_NO} to server")
-                            self.sock.sendto(
-                                packet.as_bytes(), self.server_loc)
+                                f"Resending Packet with SEQ#{packet.header.SEQ_NO} to server"
+                            )
+                            self.sock.sendto(packet.as_bytes(), self.server_loc)
                             self.window_packet_buffer[i][1] = time.time()
 
                     elif status == PacketState.ACKED and i == 0:
                         self.window_packet_buffer.popleft()
                         i -= 1
-                        self.slideWindow()
+                        could_slide = self.slideWindow()
+                        if not could_slide and not len(self.window_packet_buffer):
+                            # Both temp buffer and window buffer are empty
+                            self.can_proceed_fin.set()
                     self.acquired_window_buffer.release()
                     # logClient("Releasing lock")
 
@@ -210,19 +208,27 @@ class Client:
 
         elif packet.header.has_flag(ACK_FLAG):
 
+            if not len(self.window_packet_buffer):
+                # This ACK packet is for FIN
+                logClient("ACK for FIN Received from server")
+                self.connectionState = ConnState.FIN_WAIT_2
+                logClient("State = FIN_WAIT_2. Waiting for server to send FIN")
+                return
             ack_num = packet.header.ACK_NO
             logClient(
-                f"Received an ACK packet of SEQ_NO:{packet.header.SEQ_NO} and ACK_NO: {packet.header.ACK_NO}")
+                f"Received an ACK packet of SEQ_NO:{packet.header.SEQ_NO} and ACK_NO: {packet.header.ACK_NO}"
+            )
             if len(self.window_packet_buffer) != 0:
                 self.acquired_window_buffer.acquire()
                 logClient("acquired lock")
                 base_seq = self.window_packet_buffer[0][0].header.SEQ_NO
                 index = ack_num - base_seq - 1
                 logClient(
-                    f"Updating packet {self.window_packet_buffer[index][0].header.SEQ_NO} to ACK'd")
+                    f"Updating packet {self.window_packet_buffer[index][0].header.SEQ_NO} to ACK'd"
+                )
                 self.window_packet_buffer[index][2] = PacketState.ACKED
                 self.acquired_window_buffer.release()
-                '''
+                """
                 if index == 0:
                     self.acquired_window_buffer.acquire()
                     self.window_packet_buffer.popleft()
@@ -230,27 +236,51 @@ class Client:
                     self.acquired_window_buffer.release()
                 if len(self.window_packet_buffer) == 0:
                     self.has_window_buffer.clear()
-                '''
-
+                """
+        elif packet.header.has_flag(FIN_FLAG):
+            logClient("Received FIN from Server!")
+            self.can_proceed_fin.set()
         # Handle data packet
         else:
-
             self.received_data_packets.add(packet)
             seq_no = packet.header.SEQ_NO
             logClient(
-                f"Received a DATA packet of SEQ_NO:{packet.header.SEQ_NO} and ACK_NO: {packet.header.ACK_NO}")
-            logClient(
-                f"Sending ACK packet: seq_no:{self.SEQ_NO} ack_no:{seq_no+1}")
-            ackPacket = Packet(Header(ACK_NO=seq_no+1,
-                                      SEQ_NO=self.SEQ_NO,
-                                      FLAGS=ACK_FLAG))
+                f"Received a DATA packet of SEQ_NO:{packet.header.SEQ_NO} and ACK_NO: {packet.header.ACK_NO}"
+            )
+            logClient(f"Sending ACK packet: seq_no:{self.SEQ_NO} ack_no:{seq_no+1}")
+            ackPacket = Packet(
+                Header(ACK_NO=seq_no + 1, SEQ_NO=self.SEQ_NO, FLAGS=ACK_FLAG)
+            )
 
             self.sock.sendto(ackPacket.as_bytes(), self.server_loc)
 
+    def close(self):
+        self.can_proceed_fin.wait()
+        logClient("Finished Sending packets, Initiating FIN")
+        initialFinPacket = Packet(
+            Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=FIN_FLAG)
+        )
+        self.sock.sendto(initialFinPacket.as_bytes(), self.server_loc)
+        self.connectionState = ConnState.FIN_WAIT_1
+        logClient("Client State changed to FIN_WAIT_1")
+        self.can_proceed_fin.clear()
+        logClient("Waiting for server to send ACK for FIN Proceeds")
+        self.can_proceed_fin.wait()
+        logClient("Sending FINAL ACK to server. Bye-Bye Server!")
+        finalFinPacket = Packet(
+            Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=ACK_FLAG)
+        )
+        self.sock.sendto(finalFinPacket.as_bytes(), self.server_loc)
+        self.can_proceed_fin.clear()
+        logClient("Waiting in TIME_WAIT_STATE")
+        self.can_proceed_fin.wait()
+        logClient("Closing Connection BYE!")
+        self.connectionState = ConnState.CLOSED
+
     def tryConnect(self, packet):
-        '''
-            Try to establish a connection or move across a connection state
-        '''
+        """
+        Try to establish a connection or move across a connection state
+        """
 
         if self.connectionState is ConnState.NO_CONNECT:  # WTF
             logClient(f"Invalid state: Not connected!\n Exitting!")
@@ -260,14 +290,16 @@ class Client:
             if packet.header.has_flag(SYNACK_FLAG):
 
                 logClient(
-                    f"Received a SYNACK packet with SEQ:{packet.header.SEQ_NO} and ACK:{packet.header.ACK_NO}")
-                self.ACK_NO = packet.header.SEQ_NO+1
+                    f"Received a SYNACK packet with SEQ:{packet.header.SEQ_NO} and ACK:{packet.header.ACK_NO}"
+                )
+                self.ACK_NO = packet.header.SEQ_NO + 1
                 self.SEQ_NO = packet.header.ACK_NO
 
                 self.connectionState = ConnState.SYNACK
 
                 ackPacket = Packet(
-                    Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=ACK_FLAG))
+                    Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=ACK_FLAG)
+                )
 
                 self.sock.sendto(ackPacket.as_bytes(), self.server_loc)
                 self.connectionState = ConnState.CONNECTED
@@ -278,25 +310,29 @@ class Client:
 
                 logClient("Resending SYN Packet to server")
                 initialSynPacket = Packet(
-                    Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYN_FLAG))
+                    Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYN_FLAG)
+                )
                 self.connectionState = ConnState.SYN
                 self.sock.sendto(initialSynPacket.as_bytes(), self.server_loc)
 
             else:
                 logClient(
-                    f"Expecting SYNACK flag at state SYN, got {packet.header.FLAGS}")
+                    f"Expecting SYNACK flag at state SYN, got {packet.header.FLAGS}"
+                )
         else:
             if packet.header.has_flag(SYNACK_FLAG):
 
                 logClient(
-                    f"Received a SYNACK packet with SEQ:{packet.header.SEQ_NO} and ACK:{packet.header.ACK_NO}")
-                self.ACK_NO = packet.header.SEQ_NO+1
+                    f"Received a SYNACK packet with SEQ:{packet.header.SEQ_NO} and ACK:{packet.header.ACK_NO}"
+                )
+                self.ACK_NO = packet.header.SEQ_NO + 1
                 self.SEQ_NO = packet.header.ACK_NO
 
                 self.connectionState = ConnState.SYNACK
 
                 ackPacket = Packet(
-                    Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=ACK_FLAG))
+                    Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=ACK_FLAG)
+                )
 
                 self.sock.sendto(ackPacket.as_bytes(), self.server_loc)
                 self.connectionState = ConnState.CONNECTED
@@ -304,21 +340,23 @@ class Client:
                 logClient("Connection established (again, hopefully)")
 
     def processData(self, packet):
-        '''
-            Respond to a packet
-        '''
+        """
+        Respond to a packet
+        """
         pass
 
     def slideWindow(self):
         if len(self.temp_buffer) != 0:
             self.window_packet_buffer.append(self.temp_buffer.popleft())
+            return True
         else:
             self.has_window_buffer.clear()
+            return False
 
     def handleHandshakeTimeout(self):
-        '''
-            Timeouts for handshake, fin
-        '''
+        """
+        Timeouts for handshake, fin
+        """
         if self.connectionState is not ConnState.CONNECTED:
             if self.connectionState == ConnState.SYN:
                 logClient(f"Timed out recv , cur state {self.connectionState}")
@@ -326,11 +364,13 @@ class Client:
 
                 if self.ack_packet_fails >= MAX_FAIL_COUNT:
                     logClient(
-                        f"Timed out recv when in state {self.connectionState}, expecting SYN_ACK. Giving up")
+                        f"Timed out recv when in state {self.connectionState}, expecting SYN_ACK. Giving up"
+                    )
                     exit(1)
                 else:
                     synPacket = Packet(
-                        Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYN_FLAG))
+                        Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYN_FLAG)
+                    )
                     self.pushPacketToReceiveBuffer(synPacket)
             else:
                 logClient(f"Invalid state: {self.connectionState}")
@@ -340,29 +380,36 @@ class Client:
             pass
 
     def receiveLoop(self):
-        '''
-            Receive a packet
-        '''
-        while True:
+        """
+        Receive a packet
+        """
+        while self.connectionState != ConnState.CLOSED:
             try:
-
-                if(self.connectionState != ConnState.CONNECTED):
+                if self.connectionState == ConnState.TIME_WAIT:
+                    self.sock.settimeout(TIME_WAIT_TIMEOUT)
+                elif self.connectionState != ConnState.CONNECTED:
                     self.sock.settimeout(SOCKET_TIMEOUT)
                 else:
                     self.sock.settimeout(None)
 
                 message = self.sock.recv(self.buf_size)
-                if(message is not None):
+                if message is not None:
                     packet = Packet(message)
                     message = None
 
-                if self.connectionState != ConnState.CONNECTED:
+                if self.connectionState == ConnState.TIME_WAIT:
+                    pass  # Ignore Delayed Packets
+                elif self.connectionState != ConnState.CONNECTED:
                     self.pushPacketToReceiveBuffer(packet)
                 else:
                     self.updateWindow(packet)
 
             except socket.timeout as e:
-                self.handleHandshakeTimeout()
+                if self.connectionState == ConnState.TIME_WAIT:
+                    # Timed Out , proceeding with FIN
+                    self.can_proceed_fin.set()
+                else:
+                    self.handleHandshakeTimeout()
 
 
 if __name__ == "__main__":
@@ -370,12 +417,13 @@ if __name__ == "__main__":
     client = Client()
     while client.connectionState != ConnState.CONNECTED:
         pass
-    client.fileTransfer("A"*1000)
+    client.fileTransfer("A" * 1000)
     # time.sleep(0.1)
     # client.fileTransfer("A"*1000)
+    client.close()
     time.sleep(30)
     a = ""
     for i in client.received_data_packets:
-        a += i.data.decode('utf-8')
-        #print(i.data.decode('utf-8'), end="")
-    print(len(a))
+        a += i.data.decode("utf-8")
+        # print(i.data.decode('utf-8'), end="")
+    print("spoj", len(a))
