@@ -39,6 +39,7 @@ class Server:
         self.received_data_packets = SortedSet([], key=keySort)
 
         self.synack_packet_fails = 0
+        self.finack = False
 
         self.SEQ_NO: int = randint(12, 1234)
         self.ACK_NO: int = 1
@@ -111,7 +112,7 @@ class Server:
 
     def processSinglePacket(self, packet: Packet, location: tuple):
 
-        if self.connectionState !=ConnState.CONNECTED:
+        if self.connectionState != ConnState.CONNECTED:
             self.temp_loc = location
             self.tryConnect(packet)
 
@@ -140,7 +141,7 @@ class Server:
                 self.processSinglePacket(packet, location)
 
                 self.has_receive_buffer.clear()
-                
+
             elif self.connectionState != ConnState.FIN_WAIT:
                 if (
                     not len(self.window_packet_buffer)
@@ -155,8 +156,23 @@ class Server:
                         )
                     )
                     logServer("Changing state to FIN_WAIT")
+                    logServer("Waiting for Final ACK for  client")
                     self.connectionState = ConnState.FIN_WAIT
                     self.sock.sendto(ackPacket.as_bytes(), self.client_loc)
+                    timestamp = time.time()
+                    attempt = 1
+                    while not self.finack:
+                        if time.time() - timestamp > PACKET_TIMEOUT:
+                            logServer("Resending FINACK to client")
+                            self.sock.sendto(ackPacket.as_bytes(), self.client_loc)
+                            attempt += 1
+                        if attempt >= MAX_FAIL_COUNT:
+                            logServer(
+                                "Client not responding :( Hope it has closed the connection."
+                            )
+                            logServer("Server closing the connection")
+                            self.connectionState = ConnState.NO_CONNECT
+                            break
 
                 elif not self.window_packet_buffer:
                     logServer("Waiting on window")
@@ -195,6 +211,7 @@ class Server:
         if packet.header.has_flag(ACK_FLAG):
             if self.connectionState == ConnState.FIN_WAIT:
                 logServer("Received Final ACK from CLIENT. Bye-Bye!")
+                self.finack = True
                 self.connectionState = ConnState.NO_CONNECT
                 logServer("Server is available again for new Connections!")
             ack_num = packet.header.ACK_NO
