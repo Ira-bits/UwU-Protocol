@@ -4,12 +4,13 @@ from enum import Enum
 # |-----|-----|-----|-----|
 
 
-SYN_FLAG = b'\x80'
-ACK_FLAG = b'\x40'
-SYNACK_FLAG = b'\xc0'
-FIN_FLAG = b'\x20'
-FINACK_FLAG = b'\x60'
+SYN_FLAG = b"\x80"
+ACK_FLAG = b"\x40"
+SYNACK_FLAG = b"\xc0"
+FIN_FLAG = b"\x20"
+FINACK_FLAG = b"\x60"
 SOCKET_TIMEOUT = 0.5
+TIME_WAIT_TIMEOUT = 0.2
 MAX_FAIL_COUNT = 30
 PACKET_TIMEOUT = 0.5
 
@@ -24,6 +25,10 @@ class ConnState(Enum):
     SYN = 1
     SYNACK = 2
     CONNECTED = 3
+    FIN_WAIT_1 = 4
+    FIN_WAIT_2 = 5
+    TIME_WAIT = 6
+    CLOSED = 7
 
 
 class PacketState(Enum):
