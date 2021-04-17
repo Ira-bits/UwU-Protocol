@@ -206,14 +206,11 @@ class Client:
             self.tryConnect(packet)
             self.has_window_buffer.clear()
 
-        elif packet.header.has_flag(ACK_FLAG):
+        elif packet.header.has_flag(FINACK_FLAG):
+            logClient("REceived FIN_ACK from server")
+            self.can_proceed_fin.set()
 
-            if not len(self.window_packet_buffer):
-                # This ACK packet is for FIN
-                logClient("ACK for FIN Received from server")
-                self.connectionState = ConnState.FIN_WAIT_2
-                logClient("State = FIN_WAIT_2. Waiting for server to send FIN")
-                return
+        elif packet.header.has_flag(ACK_FLAG):
             ack_num = packet.header.ACK_NO
             logClient(
                 f"Received an ACK packet of SEQ_NO:{packet.header.SEQ_NO} and ACK_NO: {packet.header.ACK_NO}"
@@ -237,9 +234,7 @@ class Client:
                 if len(self.window_packet_buffer) == 0:
                     self.has_window_buffer.clear()
                 """
-        elif packet.header.has_flag(FIN_FLAG):
-            logClient("Received FIN from Server!")
-            self.can_proceed_fin.set()
+
         # Handle data packet
         else:
             self.received_data_packets.add(packet)
@@ -260,20 +255,18 @@ class Client:
         initialFinPacket = Packet(
             Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=FIN_FLAG)
         )
+        logClient("Sending FIN to Server")
         self.sock.sendto(initialFinPacket.as_bytes(), self.server_loc)
-        self.connectionState = ConnState.FIN_WAIT_1
-        logClient("Client State changed to FIN_WAIT_1")
+        self.connectionState = ConnState.FIN_WAIT
+        logClient("Client State changed to FIN_WAIT")
         self.can_proceed_fin.clear()
-        logClient("Waiting for server to send ACK for FIN Proceeds")
+        logClient("Waiting for server to send FIN_ACK")
         self.can_proceed_fin.wait()
         logClient("Sending FINAL ACK to server. Bye-Bye Server!")
         finalFinPacket = Packet(
             Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=ACK_FLAG)
         )
         self.sock.sendto(finalFinPacket.as_bytes(), self.server_loc)
-        self.can_proceed_fin.clear()
-        logClient("Waiting in TIME_WAIT_STATE")
-        self.can_proceed_fin.wait()
         logClient("Closing Connection BYE!")
         self.connectionState = ConnState.CLOSED
 
@@ -385,9 +378,10 @@ class Client:
         """
         while self.connectionState != ConnState.CLOSED:
             try:
-                if self.connectionState == ConnState.TIME_WAIT:
-                    self.sock.settimeout(TIME_WAIT_TIMEOUT)
-                elif self.connectionState != ConnState.CONNECTED:
+                if (
+                    self.connectionState not in CONNECTED_STATES
+                    and self.connectionState != ConnState.CLOSED
+                ):
                     self.sock.settimeout(SOCKET_TIMEOUT)
                 else:
                     self.sock.settimeout(None)
@@ -396,20 +390,13 @@ class Client:
                 if message is not None:
                     packet = Packet(message)
                     message = None
-
-                if self.connectionState == ConnState.TIME_WAIT:
-                    pass  # Ignore Delayed Packets
-                elif self.connectionState != ConnState.CONNECTED:
+                if self.connectionState not in CONNECTED_STATES:
                     self.pushPacketToReceiveBuffer(packet)
                 else:
                     self.updateWindow(packet)
 
             except socket.timeout as e:
-                if self.connectionState == ConnState.TIME_WAIT:
-                    # Timed Out , proceeding with FIN
-                    self.can_proceed_fin.set()
-                else:
-                    self.handleHandshakeTimeout()
+                self.handleHandshakeTimeout()
 
 
 if __name__ == "__main__":
@@ -420,8 +407,9 @@ if __name__ == "__main__":
     client.fileTransfer("A" * 1000)
     # time.sleep(0.1)
     # client.fileTransfer("A"*1000)
+    time.sleep(15)
     client.close()
-    time.sleep(30)
+    # time.sleep(30)
     a = ""
     for i in client.received_data_packets:
         a += i.data.decode("utf-8")
