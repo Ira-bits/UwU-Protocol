@@ -40,6 +40,7 @@ class Client:
         self.acquired_window_buffer = threading.Lock()
 
         self.ack_packet_fails = 0
+        self.finack=False
 
         self.received_data_packets = SortedSet([], key=keySort)
 
@@ -207,8 +208,8 @@ class Client:
             self.has_window_buffer.clear()
 
         elif packet.header.has_flag(FINACK_FLAG):
-            logClient("REceived FIN_ACK from server")
-            self.can_proceed_fin.set()
+            logClient("Received FIN_ACK from server")
+            self.finack=True
 
         elif packet.header.has_flag(ACK_FLAG):
             ack_num = packet.header.ACK_NO
@@ -259,9 +260,20 @@ class Client:
         self.sock.sendto(initialFinPacket.as_bytes(), self.server_loc)
         self.connectionState = ConnState.FIN_WAIT
         logClient("Client State changed to FIN_WAIT")
-        self.can_proceed_fin.clear()
+        attempt=1
         logClient("Waiting for server to send FIN_ACK")
-        self.can_proceed_fin.wait()
+        timestamp=time.time()
+        while(not self.finack):
+            if time.time() - timestamp > PACKET_TIMEOUT:
+                logClient(
+                f"Resending FIN to server"
+                )
+                self.sock.sendto(initialFinPacket.as_bytes(), self.server_loc)
+                attempt+=1
+            if(attempt>=MAX_FAIL_COUNT):
+                logClient("Server Down!! Terminating FIN and closing.")
+                self.connectionState=ConnState.CLOSED
+                exit(0)
         logClient("Sending FINAL ACK to server. Bye-Bye Server!")
         finalFinPacket = Packet(
             Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=ACK_FLAG)
@@ -414,4 +426,4 @@ if __name__ == "__main__":
     for i in client.received_data_packets:
         a += i.data.decode("utf-8")
         # print(i.data.decode('utf-8'), end="")
-    print("spoj", len(a))
+    print(len(a))
