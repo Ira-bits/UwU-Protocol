@@ -221,12 +221,13 @@ class Server:
             if len(self.window_packet_buffer) != 0:
                 self.acquired_window_buffer.acquire()
                 base_seq = self.window_packet_buffer[0][0].header.SEQ_NO
-                index = ack_num - base_seq - 1
-                logServer(
-                    f"Updating packet {self.window_packet_buffer[index][0].header.SEQ_NO} to ACK'd"
-                )
-                self.window_packet_buffer[index][2] = PacketState.ACKED
-                self.acquired_window_buffer.release()
+                if ack_num > base_seq - 1:
+                    index = ack_num - base_seq - 1
+                    logServer(
+                        f"Updating packet {self.window_packet_buffer[index][0].header.SEQ_NO} to ACK'd"
+                    )
+                    self.window_packet_buffer[index][2] = PacketState.ACKED
+                    self.acquired_window_buffer.release()
 
         elif packet.header.has_flag(FIN_FLAG):
             logServer("State changed to CLOSE_WAIT")
@@ -238,7 +239,14 @@ class Server:
 
         # Handle data packet
         else:
-            self.received_data_packets.add(packet)
+            base_seq = 0
+            self.acquired_window_buffer.acquire()
+            if len(self.window_packet_buffer) != 0:
+                base_seq = self.window_packet_buffer[0][0].header.SEQ_NO
+            self.acquired_window_buffer.release()
+            if packet.header.ACK_NO >= base_seq + 1:
+                self.received_data_packets.add(packet)
+            seq_no = packet.header.SEQ_NO
             logServer(
                 f"Received a data packet of SEQ_NO:{packet.header.SEQ_NO} and ACK_NO: {packet.header.ACK_NO}"
             )
@@ -385,9 +393,10 @@ class Server:
 if __name__ == "__main__":
     setupLogging()
     serv = Server()
-    time.sleep(10)
+    while serv.connectionState != ConnState.CONNECTED:
+        pass
     # print("Hey: ")
-    serv.fileTransfer("A" * 1000)
+    serv.fileTransfer("A" * 10000)
     time.sleep(30)
     a = ""
     for i in serv.received_data_packets:
