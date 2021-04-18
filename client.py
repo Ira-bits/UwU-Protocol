@@ -40,7 +40,7 @@ class Client:
         self.acquired_window_buffer = threading.Lock()
 
         self.ack_packet_fails = 0
-        self.finack=False
+        self.finack = False
 
         self.received_data_packets = SortedSet([], key=keySort)
 
@@ -209,7 +209,7 @@ class Client:
 
         elif packet.header.has_flag(FINACK_FLAG):
             logClient("Received FIN_ACK from server")
-            self.finack=True
+            self.finack = True
 
         elif packet.header.has_flag(ACK_FLAG):
             ack_num = packet.header.ACK_NO
@@ -220,25 +220,23 @@ class Client:
                 self.acquired_window_buffer.acquire()
                 logClient("acquired lock")
                 base_seq = self.window_packet_buffer[0][0].header.SEQ_NO
-                index = ack_num - base_seq - 1
-                logClient(
-                    f"Updating packet {self.window_packet_buffer[index][0].header.SEQ_NO} to ACK'd"
-                )
-                self.window_packet_buffer[index][2] = PacketState.ACKED
-                self.acquired_window_buffer.release()
-                """
-                if index == 0:
-                    self.acquired_window_buffer.acquire()
-                    self.window_packet_buffer.popleft()
-                    self.slideWindow()
+                if ack_num > base_seq - 1:
+                    index = ack_num - base_seq - 1
+                    logClient(
+                        f"Updating packet {self.window_packet_buffer[index][0].header.SEQ_NO} to ACK'd"
+                    )
+                    self.window_packet_buffer[index][2] = PacketState.ACKED
                     self.acquired_window_buffer.release()
-                if len(self.window_packet_buffer) == 0:
-                    self.has_window_buffer.clear()
-                """
 
         # Handle data packet
         else:
-            self.received_data_packets.add(packet)
+            base_seq = 0
+            self.acquired_window_buffer.acquire()
+            if len(self.window_packet_buffer) != 0:
+                base_seq = self.window_packet_buffer[0][0].header.SEQ_NO
+            self.acquired_window_buffer.release()
+            if packet.header.ACK_NO >= base_seq + 1:
+                self.received_data_packets.add(packet)
             seq_no = packet.header.SEQ_NO
             logClient(
                 f"Received a DATA packet of SEQ_NO:{packet.header.SEQ_NO} and ACK_NO: {packet.header.ACK_NO}"
@@ -260,19 +258,17 @@ class Client:
         self.sock.sendto(initialFinPacket.as_bytes(), self.server_loc)
         self.connectionState = ConnState.FIN_WAIT
         logClient("Client State changed to FIN_WAIT")
-        attempt=1
+        attempt = 1
         logClient("Waiting for server to send FIN_ACK")
-        timestamp=time.time()
-        while(not self.finack):
+        timestamp = time.time()
+        while not self.finack:
             if time.time() - timestamp > PACKET_TIMEOUT:
-                logClient(
-                f"Resending FIN to server"
-                )
+                logClient(f"Resending FIN to server")
                 self.sock.sendto(initialFinPacket.as_bytes(), self.server_loc)
-                attempt+=1
-            if(attempt>=MAX_FAIL_COUNT):
+                attempt += 1
+            if attempt >= MAX_FAIL_COUNT:
                 logClient("Server Down!! Terminating FIN and closing.")
-                self.connectionState=ConnState.CLOSED
+                self.connectionState = ConnState.CLOSED
                 exit(0)
         logClient("Sending FINAL ACK to server. Bye-Bye Server!")
         finalFinPacket = Packet(
@@ -416,7 +412,7 @@ if __name__ == "__main__":
     client = Client()
     while client.connectionState != ConnState.CONNECTED:
         pass
-    client.fileTransfer("A" * 1000)
+    client.fileTransfer("A" * 10000)
     # time.sleep(0.1)
     # client.fileTransfer("A"*1000)
     time.sleep(15)
