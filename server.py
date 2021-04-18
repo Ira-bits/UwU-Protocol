@@ -186,14 +186,14 @@ class Server:
                     if status == PacketState.NOT_SENT:
                         self.window_packet_buffer[i][2] = PacketState.SENT
                         logServer(
-                            f"Sending Packet with SEQ#{packet.header.SEQ_NO} to server"
+                            f"Sending Packet with SEQ#{packet.header.SEQ_NO} to client"
                         )
                         self.sock.sendto(packet.as_bytes(), self.client_loc)
 
                     elif status == PacketState.SENT:
                         if time.time() - timestamp > PACKET_TIMEOUT:
                             logServer(
-                                f"Resending Packet with SEQ#{packet.header.SEQ_NO} to server"
+                                f"Resending Packet with SEQ#{packet.header.SEQ_NO} to client"
                             )
                             self.sock.sendto(packet.as_bytes(), self.client_loc)
                             self.window_packet_buffer[i][1] = time.time()
@@ -214,6 +214,7 @@ class Server:
                 self.finack = True
                 self.connectionState = ConnState.NO_CONNECT
                 logServer("Server is available again for new Connections!")
+                return
             ack_num = packet.header.ACK_NO
             logServer(
                 f"Received an ACK packet of SEQ_NO:{packet.header.SEQ_NO} and ACK_NO: {packet.header.ACK_NO}"
@@ -396,10 +397,12 @@ if __name__ == "__main__":
     while serv.connectionState != ConnState.CONNECTED:
         pass
     # print("Hey: ")
-    serv.fileTransfer("A" * 10000)
+    time.sleep(10)
+    serv.fileTransfer("ABCDEFG" * 1000)
     time.sleep(30)
     a = ""
+    print(serv.received_data_packets)
     for i in serv.received_data_packets:
         a += i.data.decode("utf-8")
         # print(i.data.decode('utf-8'), end="")
-    print(len(a))
+    print(a)

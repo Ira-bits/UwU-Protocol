@@ -121,7 +121,7 @@ class Client:
         """
         push a packet to the "received" buffer
         """
-
+        print(self.connectionState)
         logClient(
             f"found packet in buffer, with flags: {bytearray(packet.header.FLAGS).hex()}"
         )
@@ -269,7 +269,7 @@ class Client:
             if attempt >= MAX_FAIL_COUNT:
                 logClient("Server Down!! Terminating FIN and closing.")
                 self.connectionState = ConnState.CLOSED
-                exit(0)
+                return
         logClient("Sending FINAL ACK to server. Bye-Bye Server!")
         finalFinPacket = Packet(
             Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=ACK_FLAG)
@@ -384,6 +384,7 @@ class Client:
         """
         Receive a packet
         """
+        packet = None
         while self.connectionState != ConnState.CLOSED:
             try:
                 if (
@@ -403,6 +404,11 @@ class Client:
                 else:
                     self.updateWindow(packet)
 
+                ## client specific stuff to avoid locks and a race condition
+                if packet is not None:
+                    if packet.header.has_flag(FINACK_FLAG):
+                        break
+
             except socket.timeout as e:
                 self.handleHandshakeTimeout()
 
@@ -412,14 +418,16 @@ if __name__ == "__main__":
     client = Client()
     while client.connectionState != ConnState.CONNECTED:
         pass
-    client.fileTransfer("A" * 10000)
+    client.fileTransfer("ABCDEFG" * 1000)
     # time.sleep(0.1)
     # client.fileTransfer("A"*1000)
-    time.sleep(15)
+    time.sleep(40)
     client.close()
     # time.sleep(30)
+    print("gothere")
     a = ""
+    print(client.received_data_packets)
     for i in client.received_data_packets:
         a += i.data.decode("utf-8")
         # print(i.data.decode('utf-8'), end="")
-    print(len(a))
+    print(a)
