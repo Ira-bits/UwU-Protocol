@@ -1,0 +1,190 @@
+[1m17:20:36.747 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:36.747 :[0m [96mCLIENT:[0m Starting client!
+[1m17:20:37.258 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:37.263 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:37.269 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:37.274 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:37.774 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:37.780 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:37.780 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:37.796 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:38.286 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:38.291 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:38.296 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:38.307 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:38.797 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:38.797 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:38.807 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:38.813 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:39.303 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:39.309 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:39.314 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:39.330 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:39.820 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:39.825 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:39.825 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:39.830 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:40.336 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:40.341 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:40.346 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:40.357 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:40.853 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:40.859 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:40.865 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:40.876 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:41.370 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:41.370 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:41.375 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:41.391 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:41.881 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:41.886 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:41.897 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:41.912 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:42.403 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:42.408 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:42.414 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:42.430 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:42.920 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:42.920 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:42.920 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:42.925 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:43.426 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:43.431 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:43.436 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:43.452 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:43.942 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:43.947 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:43.958 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:43.963 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:44.469 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:44.474 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:44.484 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:44.500 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:44.990 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:44.995 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:45.006 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:45.021 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:45.506 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:45.511 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:45.522 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:45.532 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:46.027 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:46.033 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:46.043 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:46.059 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:46.544 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:46.544 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:46.549 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:46.555 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:47.050 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:47.055 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:47.066 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:47.082 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:47.566 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:47.567 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:47.572 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:47.587 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:48.072 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:48.072 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:48.072 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:48.078 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:48.578 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:48.583 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:48.589 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:48.594 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:49.094 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:49.100 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:49.105 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:49.110 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:49.610 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:49.616 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:49.626 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:49.642 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:50.132 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:50.137 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:50.148 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:50.153 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:50.648 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:50.656 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:50.656 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:50.669 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:51.162 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:51.167 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:51.178 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:51.183 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:51.678 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:51.679 :[0m [96mCLIENT:[0m found packet in buffer, with flags: 80
+[1m17:20:51.684 :[0m [96mCLIENT:[0m Resending SYN Packet to server
+[1m17:20:51.689 :[0m [96mCLIENT:[0m Waiting on receive buffer
+[1m17:20:52.190 :[0m [96mCLIENT:[0m Timed out recv , cur state ConnState.SYN
+[1m17:20:52.190 :[0m [96mCLIENT:[0m Timed out recv when in state ConnState.SYN, expecting SYN_ACK. Giving up
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+ConnState.SYN
+13
+Traceback (most recent call last):
+  File "client.py", line 452, in <module>
+    clientApi("ABCDEFG" * 1000)
+  File "client.py", line 426, in clientApi
+    while client.connectionState != ConnState.CONNECTED:
+KeyboardInterrupt
+Exception ignored in: <module 'threading' from '/usr/lib/python3.8/threading.py'>
+Traceback (most recent call last):
+  File "/usr/lib/python3.8/threading.py", line 1388, in _shutdown
+    lock.acquire()
+KeyboardInterrupt: 

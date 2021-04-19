@@ -11,6 +11,8 @@ from header import Header, Packet
 from collections import deque
 import copy
 from sortedcontainers import SortedSet
+import os
+import sys
 
 
 def keySort(l: Packet):
@@ -283,7 +285,24 @@ class Client:
         )
         self.sendCall(finalFinPacket.as_bytes(), self.server_loc)
         logClient("Closing Connection BYE!")
-        self.connectionState = ConnState.CLOSED
+        # self.can_proceed_fin.clear()
+        self.has_receive_buffer.set()
+        self.has_window_buffer.set()
+        # self.acquired_window_buffer.release()
+
+        # self.process_packet_thread._stop()
+        # self.process_packet_thread.join()
+        pid = os.getpid()
+
+        f = open("client-stats.txt", "w")
+        timeTaken = time.time() - self.starttime
+        stats = f"{self.debugDataSent} {timeTaken}"
+        logClient("Statistics saved")
+        f.write(stats)
+        f.close()
+
+        os.system(f"kill -9 {pid}")
+        # self.acquired_window_buffer.release()
 
     def tryConnect(self, packet):
         """
@@ -425,18 +444,14 @@ def clientApi(data: str):
     client = Client()
     while client.connectionState != ConnState.CONNECTED:
         pass
-    s = time.time()
-    f = open("client-stats.txt", "w")
+    client.starttime = time.time()
     client.fileTransfer(data)
-    timeTaken = time.time() - s
-    stats = f"{client.debugDataSent} {timeTaken}"
-    logClient("Statistics saved")
-    f.write(stats)
-    f.close()
+
     # time.sleep(0.1)
     # client.fileTransfer("A"*1000)
-    # time.sleep(40)
     client.close()
+    exit()
+
     # time.sleep(30)
     # print("gothere")
     # a = ""
@@ -445,7 +460,6 @@ def clientApi(data: str):
     #     a += i.data.decode("utf-8")
     #     # print(i.data.decode('utf-8'), end="")
     # print(a)
-    exit(0)
 
 
 if __name__ == "__main__":

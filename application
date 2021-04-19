@@ -8,13 +8,8 @@ if __name__ == "__main__":
         print("Usage: application FILENAME\n")
         exit(1)
 
-    try:
-        fileName = sys.argv[1]
-        f = open(fileName, "r")
-        clientApi(f.read())
-    except:
-        print("cannot open", fileName)
-        exit(1)
-
+    fileName = sys.argv[1]
+    f = open(fileName, "r")
+    clientApi(f.read())
     f.close()
-    exit(1)
+    exit(0)

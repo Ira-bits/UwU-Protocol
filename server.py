@@ -397,15 +397,19 @@ if __name__ == "__main__":
     while serv.connectionState != ConnState.CONNECTED:
         pass
     # print("Hey: ")
-    time.sleep(10)
-    serv.fileTransfer("ABCDEFG" * 1000)
-    time.sleep(30)
+    # time.sleep(10)
+    # serv.fileTransfer("ABCDEFG" * 1000)
+    # time.sleep(30)
     a = ""
     print(serv.received_data_packets)
     for i in serv.received_data_packets:
         a += i.data.decode("utf-8")
         # print(i.data.decode('utf-8'), end="")
-    f = open("data.txt", "w")
-    f.write(a)
-    f.close()
+    # f = open("data.txt", "w")
+    # f.write(a)
+    # f.close()
+
+    f = open("server-stats.txt", "w")
+
     print("DONE! OK OK OK !! ( maybe )")
+    exit(0)
