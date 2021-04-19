@@ -413,21 +413,26 @@ class Client:
                 self.handleHandshakeTimeout()
 
 
-if __name__ == "__main__":
+def clientApi(data: str):
     setupLogging()
     client = Client()
     while client.connectionState != ConnState.CONNECTED:
         pass
-    client.fileTransfer("ABCDEFG" * 1000)
+    client.fileTransfer(data)
     # time.sleep(0.1)
     # client.fileTransfer("A"*1000)
     time.sleep(40)
     client.close()
     # time.sleep(30)
-    print("gothere")
-    a = ""
-    print(client.received_data_packets)
-    for i in client.received_data_packets:
-        a += i.data.decode("utf-8")
-        # print(i.data.decode('utf-8'), end="")
-    print(a)
+    # print("gothere")
+    # a = ""
+    # print(client.received_data_packets)
+    # for i in client.received_data_packets:
+    #     a += i.data.decode("utf-8")
+    #     # print(i.data.decode('utf-8'), end="")
+    # print(a)
+    exit(0)
+
+
+if __name__ == "__main__":
+    clientApi("ABCDEFG" * 1000)

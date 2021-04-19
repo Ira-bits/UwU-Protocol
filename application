@@ -1,0 +1,20 @@
+#!/usr/bin/python3
+import sys
+from client import clientApi
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: application FILENAME\n")
+        exit(1)
+
+    try:
+        fileName = sys.argv[1]
+        f = open(fileName, "r")
+        clientApi(f.read())
+    except:
+        print("cannot open", fileName)
+        exit(1)
+
+    f.close()
+    exit(1)
