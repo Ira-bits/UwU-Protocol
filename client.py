@@ -459,13 +459,15 @@ if __name__ == "__main__":
     a = ""
     while not client.received_data_packets:
         pass
+    """
     packet = client.received_data_packets[0]
     client.received_data_packets.remove(client.received_data_packets[0])
     size = int.from_bytes(packet.data, byteorder="big")
     time.sleep(10)
     with open("size", "w") as f:
         f.write(str(size))
-
+    """
+    size = 17725
     byte = 0
     # poll till it's done
     while len(client.received_data_packets) * PACKET_LENGTH < size:

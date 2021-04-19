@@ -191,9 +191,7 @@ class Server:
 
                 i = 0
                 while i < len(self.window_packet_buffer):
-                    logServer("TRYING TO ACQUIRE LOCK")
                     self.acquired_window_buffer.acquire()
-                    logServer("ACQUIRED LOCK")
                     packet, timestamp, status = self.window_packet_buffer[i]
 
                     if status == PacketState.NOT_SENT:
@@ -215,9 +213,7 @@ class Server:
                         self.window_packet_buffer.popleft()
                         i -= 1
                         self.slideWindow()
-                    logServer("RELEASE WINDOW")
                     self.acquired_window_buffer.release()
-                    # logClient("Releasing lock")
                     i += 1
 
     def updateWindow(self, packet):
@@ -234,9 +230,7 @@ class Server:
                 f"Received an ACK packet of SEQ_NO:{packet.header.SEQ_NO} and ACK_NO: {packet.header.ACK_NO}"
             )
             if len(self.window_packet_buffer) != 0:
-                logServer("UPDATE WINDOW TRYING TO ACQUIRE LOCK")
                 self.acquired_window_buffer.acquire()
-                logServer("UPDATE WINDOW ACQUIRED LOCK")
                 base_seq = self.window_packet_buffer[0][0].header.SEQ_NO
                 if ack_num > base_seq - 1:
                     index = ack_num - base_seq - 1
@@ -247,7 +241,6 @@ class Server:
                         f"Updating packet {self.window_packet_buffer[index][0].header.SEQ_NO} to ACK'd"
                     )
                     self.window_packet_buffer[index][2] = PacketState.ACKED
-                    logServer("UPDATE WINDOW RELEASED")
                 self.acquired_window_buffer.release()
 
         elif packet.header.has_flag(FIN_FLAG):
@@ -261,12 +254,10 @@ class Server:
         # Handle data packet
         else:
             base_seq = 0
-            logServer("TRYING TO ACQUIRE DATA PACKET")
             self.acquired_window_buffer.acquire()
             if len(self.window_packet_buffer) != 0:
                 base_seq = self.window_packet_buffer[0][0].header.SEQ_NO
             self.acquired_window_buffer.release()
-            logServer("RELEASE DATA PACKET")
             if packet.header.ACK_NO >= base_seq + 1:
                 self.received_data_packets.add(packet)
                 if packet.header.SEQ_NO == self.ACK_NO + 1:
@@ -441,6 +432,7 @@ if __name__ == "__main__":
         pass
     # print("Hey: ")
     a = b""
+    """
     with open("client.py", "rb") as f:
         f.seek(0, os.SEEK_END)
         a += f.tell().to_bytes(16, byteorder="big")
@@ -449,6 +441,7 @@ if __name__ == "__main__":
         serv.fileTransfer(a)
 
     time.sleep(10)
+    """
 
     a = b""
     with open("client.py", "rb") as f:
