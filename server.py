@@ -9,6 +9,7 @@ from lib import logServer, setupLogging
 from config import *
 from collections import deque
 import time
+import os
 
 
 def keySort(l: Packet):
@@ -34,7 +35,7 @@ class Server:
         self.client_loc = None
 
         self.temp_buffer = deque([])
-        self.rwnd_size = 100
+        self.rwnd_size = 5
 
         self.received_data_packets = SortedSet([], key=keySort)
 
@@ -46,6 +47,7 @@ class Server:
         # For send()
         self.has_receive_buffer: threading.Event = threading.Event()
         self.has_window_buffer: threading.Event = threading.Event()
+        # self.appl_recv_wait = threading.Semaphore()
         self.acquired_window_buffer = threading.Lock()
 
         self.receive_packet_buffer = deque([])
@@ -62,22 +64,30 @@ class Server:
         self.process_packet_thread.start()
 
     def fileTransfer(self, data):
-        pack_len = 600
+        pack_len = PACKET_LENGTH
 
-        if len(data) > 600:
+        if len(data) > PACKET_LENGTH:
             packets = [
-                Packet(Header(), data[i : min(i + pack_len, len(data))].encode())
+                Packet(Header(), data[i : min(i + pack_len, len(data))])
                 for i in range(0, len(data), pack_len)
             ]
             # print("Number of packets: ", len(packets))
         else:
-            packets = [data]
+            packets = [Packet(Header(), data)]
 
         for packet in packets:
             self.temp_buffer.append(packet)
 
         self.fillWindowBuffer()
         # print("temp, ", len(self.temp_buffer))
+
+    """
+    def packetReceive(self):
+        self.appl_recv_wait.acquire()
+        packet = self.received_data_packets[0]
+        self.received_data_packets.remove(self.received_data_packets[0])
+        return packet
+    """
 
     def fillWindowBuffer(self):
         """
@@ -174,13 +184,16 @@ class Server:
                             self.connectionState = ConnState.NO_CONNECT
                             break
 
-                elif not self.window_packet_buffer:
+                elif len(self.window_packet_buffer) == 0:
                     logServer("Waiting on window")
                     self.has_window_buffer.wait()
+                    logServer("Waited on window")
 
                 i = 0
                 while i < len(self.window_packet_buffer):
+                    logServer("TRYING TO ACQUIRE LOCK")
                     self.acquired_window_buffer.acquire()
+                    logServer("ACQUIRED LOCK")
                     packet, timestamp, status = self.window_packet_buffer[i]
 
                     if status == PacketState.NOT_SENT:
@@ -202,6 +215,7 @@ class Server:
                         self.window_packet_buffer.popleft()
                         i -= 1
                         self.slideWindow()
+                    logServer("RELEASE WINDOW")
                     self.acquired_window_buffer.release()
                     # logClient("Releasing lock")
                     i += 1
@@ -220,15 +234,21 @@ class Server:
                 f"Received an ACK packet of SEQ_NO:{packet.header.SEQ_NO} and ACK_NO: {packet.header.ACK_NO}"
             )
             if len(self.window_packet_buffer) != 0:
+                logServer("UPDATE WINDOW TRYING TO ACQUIRE LOCK")
                 self.acquired_window_buffer.acquire()
+                logServer("UPDATE WINDOW ACQUIRED LOCK")
                 base_seq = self.window_packet_buffer[0][0].header.SEQ_NO
                 if ack_num > base_seq - 1:
                     index = ack_num - base_seq - 1
                     logServer(
+                        f"Index: {index}, max index = {len(self.window_packet_buffer)-1}"
+                    )
+                    logServer(
                         f"Updating packet {self.window_packet_buffer[index][0].header.SEQ_NO} to ACK'd"
                     )
                     self.window_packet_buffer[index][2] = PacketState.ACKED
-                    self.acquired_window_buffer.release()
+                    logServer("UPDATE WINDOW RELEASED")
+                self.acquired_window_buffer.release()
 
         elif packet.header.has_flag(FIN_FLAG):
             logServer("State changed to CLOSE_WAIT")
@@ -241,12 +261,18 @@ class Server:
         # Handle data packet
         else:
             base_seq = 0
+            logServer("TRYING TO ACQUIRE DATA PACKET")
             self.acquired_window_buffer.acquire()
             if len(self.window_packet_buffer) != 0:
                 base_seq = self.window_packet_buffer[0][0].header.SEQ_NO
             self.acquired_window_buffer.release()
+            logServer("RELEASE DATA PACKET")
             if packet.header.ACK_NO >= base_seq + 1:
                 self.received_data_packets.add(packet)
+                if packet.header.SEQ_NO == self.ACK_NO + 1:
+                    # self.appl_recv_wait.release()
+                    self.ACK_NO += 1
+
             seq_no = packet.header.SEQ_NO
             logServer(
                 f"Received a data packet of SEQ_NO:{packet.header.SEQ_NO} and ACK_NO: {packet.header.ACK_NO}"
@@ -268,7 +294,9 @@ class Server:
                 self.ACK_NO = packet.header.SEQ_NO + 1
 
                 self.connectionState = ConnState.SYN
-                logServer(f"SYN_ACK being sent to client at {self.temp_loc}")
+                logServer(
+                    f"SYN_ACK of SEQ:{self.SEQ_NO} and ack:{self.ACK_NO} being sent to client at {self.temp_loc}"
+                )
 
                 synAckPacket = Packet(
                     Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYNACK_FLAG)
@@ -284,6 +312,9 @@ class Server:
         elif self.connectionState is ConnState.SYNACK:
 
             if packet.header.has_flag(ACK_FLAG):
+                logServer(
+                    f"Received an ACK packet of seq: {packet.header.SEQ_NO} and ACK {packet.header.ACK_NO}"
+                )
                 self.connectionState = ConnState.CONNECTED
                 logServer(f"State changed to connected")
                 self.SEQ_NO += 1
@@ -324,8 +355,17 @@ class Server:
         pass
 
     def slideWindow(self):
+        logServer("Adding packet to window")
         if len(self.temp_buffer) != 0:
-            self.window_packet_buffer.append(self.temp_buffer.popleft())
+            packet = self.temp_buffer.popleft()
+            self.SEQ_NO += 1
+            packet.header.SEQ_NO = self.SEQ_NO
+            packet.header.ACK_NO = self.ACK_NO
+            self.window_packet_buffer.append(
+                [packet, time.time(), PacketState.NOT_SENT]
+            )
+            # logServer("NOTIFY WINDOW")
+            self.has_window_buffer.set()
         else:
             self.has_window_buffer.clear()
 
@@ -337,7 +377,10 @@ class Server:
             self.connectionState not in CONNECTED_STATES
             and self.connectionState != ConnState.NO_CONNECT
         ):
-            if self.connectionState == ConnState.SYNACK:
+            if (
+                self.connectionState == ConnState.SYNACK
+                or self.connectionState == ConnState.SYN
+            ):
                 logServer(f"Timed out recv , cur state {self.connectionState}")
                 self.synack_packet_fails += 1
 
@@ -397,12 +440,18 @@ if __name__ == "__main__":
     while serv.connectionState != ConnState.CONNECTED:
         pass
     # print("Hey: ")
+    a = b""
+    with open("client.py", "rb") as f:
+        f.seek(0, os.SEEK_END)
+        a += f.tell().to_bytes(16, byteorder="big")
+        with open("servsize", "w") as f2:
+            f2.write(str(f.tell()))
+        serv.fileTransfer(a)
+
     time.sleep(10)
-    serv.fileTransfer("ABCDEFG" * 1000)
-    time.sleep(30)
-    a = ""
-    print(serv.received_data_packets)
-    for i in serv.received_data_packets:
-        a += i.data.decode("utf-8")
-        # print(i.data.decode('utf-8'), end="")
-    print(a)
+
+    a = b""
+    with open("client.py", "rb") as f:
+        data = f.read()
+        print(len(data))
+        serv.fileTransfer(data)

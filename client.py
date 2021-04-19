@@ -1,7 +1,7 @@
 import socket
 from header import Header
 import multiprocessing
-from lib import logClient, setupLogging
+from lib import logClient, logServer, setupLogging
 from config import *
 from threading import Timer
 import threading
@@ -21,7 +21,7 @@ class Client:
     def __init__(self, serv_addr="127.0.0.1", serv_port=8000):
         self.sock = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 
-        self.rwnd_size = 100
+        self.rwnd_size = 10
         self.buf_size = 1024
         self.server_loc = (serv_addr, serv_port)
 
@@ -38,6 +38,7 @@ class Client:
 
         self.has_window_buffer = threading.Event()
         self.acquired_window_buffer = threading.Lock()
+        # self.appl_recv_wait = threading.Semaphore(0)
 
         self.ack_packet_fails = 0
         self.finack = False
@@ -76,22 +77,45 @@ class Client:
 
     def fileTransfer(self, data):
         self.can_proceed_fin.clear()  # To enforce fin only after complete transfer
-        pack_len = 600
+        pack_len = PACKET_LENGTH
 
-        if len(data) > 600:
+        if len(data) > PACKET_LENGTH:
             packets = [
                 Packet(Header(), data[i : min(i + pack_len, len(data))].encode())
                 for i in range(0, len(data), pack_len)
             ]
             # print("Number of packets: ", len(packets))
         else:
-            packets = [data]
+            packets = [Packet(Header(), data)]
 
         for packet in packets:
             self.temp_buffer.append(packet)
 
         self.fillWindowBuffer()
         # print("temp, ", len(self.temp_buffer))
+
+    """
+    def packetReceive(self, size):
+        logServer("APPLICATION: Waiting on packet")
+        self.appl_recv_wait.acquire()
+        logServer("APPLICATION: Cleared packet")
+        packet = self.received_data_packets[0]
+        self.received_data_packets.remove(self.received_data_packets[0])
+        return packet
+    """
+
+    def slideWindow(self):
+        logServer("Adding packet to window")
+        if len(self.temp_buffer) != 0:
+            packet = self.temp_buffer.popleft()
+            self.SEQ_NO += 1
+            packet.header.SEQ_NO = self.SEQ_NO
+            packet.header.ACK_NO = self.ACK_NO
+            self.window_packet_buffer.append(
+                [packet, time.time(), PacketState.NOT_SENT]
+            )
+        else:
+            self.has_window_buffer.clear()
 
     def fillWindowBuffer(self):
         """
@@ -226,7 +250,7 @@ class Client:
                         f"Updating packet {self.window_packet_buffer[index][0].header.SEQ_NO} to ACK'd"
                     )
                     self.window_packet_buffer[index][2] = PacketState.ACKED
-                    self.acquired_window_buffer.release()
+                self.acquired_window_buffer.release()
 
         # Handle data packet
         else:
@@ -237,6 +261,10 @@ class Client:
             self.acquired_window_buffer.release()
             if packet.header.ACK_NO >= base_seq + 1:
                 self.received_data_packets.add(packet)
+                if self.received_data_packets[0].header.SEQ_NO == self.ACK_NO + 1:
+                    # self.appl_recv_wait.release()
+                    self.ACK_NO += 1
+
             seq_no = packet.header.SEQ_NO
             logClient(
                 f"Received a DATA packet of SEQ_NO:{packet.header.SEQ_NO} and ACK_NO: {packet.header.ACK_NO}"
@@ -298,6 +326,9 @@ class Client:
 
                 self.connectionState = ConnState.SYNACK
 
+                logClient(
+                    f"Sending an ACK packet of seq:{self.SEQ_NO} and ACK:{self.ACK_NO}"
+                )
                 ackPacket = Packet(
                     Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=ACK_FLAG)
                 )
@@ -418,16 +449,34 @@ if __name__ == "__main__":
     client = Client()
     while client.connectionState != ConnState.CONNECTED:
         pass
-    client.fileTransfer("ABCDEFG" * 1000)
+    # client.fileTransfer("ABCDEFG" * 1000)
     # time.sleep(0.1)
     # client.fileTransfer("A"*1000)
-    time.sleep(40)
-    client.close()
+    # time.sleep(40)
+    # client.close()
     # time.sleep(30)
-    print("gothere")
+    # print("gothere")
     a = ""
-    print(client.received_data_packets)
-    for i in client.received_data_packets:
-        a += i.data.decode("utf-8")
-        # print(i.data.decode('utf-8'), end="")
-    print(a)
+    while not client.received_data_packets:
+        pass
+    packet = client.received_data_packets[0]
+    client.received_data_packets.remove(client.received_data_packets[0])
+    size = int.from_bytes(packet.data, byteorder="big")
+    time.sleep(10)
+    with open("size", "w") as f:
+        f.write(str(size))
+
+    byte = 0
+    # poll till it's done
+    while len(client.received_data_packets) * PACKET_LENGTH < size:
+        time.sleep(1)
+        pass
+    print("DONE")
+    with open("f2", "wb") as f:
+        while byte < size:
+            packet = client.received_data_packets[0]
+            client.received_data_packets.remove(client.received_data_packets[0])
+            byte += len(packet.data)
+            # print(f"bytes: {byte}")
+            f.write(packet.data)
+    client.close()
