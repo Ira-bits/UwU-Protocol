@@ -16,11 +16,11 @@ def keySort(l: Packet):
 
 
 class Server:
-    def __init__(self, addr="127.0.0.1", port=8000, r_wnd_size=4):
+    def __init__(self, addr="127.0.0.1", port=8000, r_wnd_size=10000):
 
         self.appl_data = []
 
-        self.buf_size: int = 1024
+        self.buf_size: int = 10240
         self.sock: socket.socket = socket.socket(
             family=socket.AF_INET, type=socket.SOCK_DGRAM
         )
@@ -34,7 +34,7 @@ class Server:
         self.client_loc = None
 
         self.temp_buffer = deque([])
-        self.rwnd_size = 100
+        self.rwnd_size = 10000
 
         self.received_data_packets = SortedSet([], key=keySort)
 
@@ -405,4 +405,7 @@ if __name__ == "__main__":
     for i in serv.received_data_packets:
         a += i.data.decode("utf-8")
         # print(i.data.decode('utf-8'), end="")
-    print(a)
+    f = open("data.txt", "w")
+    f.write(a)
+    f.close()
+    print("DONE! OK OK OK !! ( maybe )")

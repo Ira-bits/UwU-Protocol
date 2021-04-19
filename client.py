@@ -21,8 +21,10 @@ class Client:
     def __init__(self, serv_addr="127.0.0.1", serv_port=8000):
         self.sock = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 
-        self.rwnd_size = 100
-        self.buf_size = 1024
+        self.debugDataSent = 0
+
+        self.rwnd_size = 10000
+        self.buf_size = 10240
         self.server_loc = (serv_addr, serv_port)
 
         self.connectionState: ConnState = ConnState.NO_CONNECT
@@ -62,6 +64,11 @@ class Client:
         self.receive_thread = threading.Thread(target=self.receiveLoop)
         self.receive_thread.start()
 
+    def sendCall(self, data: bytes, _location):
+        self.debugDataSent += len(data)
+        print(len(data))
+        self.sock.sendto(data, self.server_loc)
+
     def sendConnection(self):
         """
         Send a SYN packet to server
@@ -72,7 +79,7 @@ class Client:
             Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYN_FLAG)
         )
         self.connectionState = ConnState.SYN
-        self.sock.sendto(initialSynPacket.as_bytes(), self.server_loc)
+        self.sendCall(initialSynPacket.as_bytes(), self.server_loc)
 
     def fileTransfer(self, data):
         self.can_proceed_fin.clear()  # To enforce fin only after complete transfer
@@ -179,13 +186,13 @@ class Client:
                         logClient(
                             f"Sending Packet with SEQ#{packet.header.SEQ_NO} to server"
                         )
-                        self.sock.sendto(packet.as_bytes(), self.server_loc)
+                        self.sendCall(packet.as_bytes(), self.server_loc)
                     elif status == PacketState.SENT:
                         if time.time() - timestamp > PACKET_TIMEOUT:
                             logClient(
                                 f"Resending Packet with SEQ#{packet.header.SEQ_NO} to server"
                             )
-                            self.sock.sendto(packet.as_bytes(), self.server_loc)
+                            self.sendCall(packet.as_bytes(), self.server_loc)
                             self.window_packet_buffer[i][1] = time.time()
 
                     elif status == PacketState.ACKED and i == 0:
@@ -246,7 +253,7 @@ class Client:
                 Header(ACK_NO=seq_no + 1, SEQ_NO=self.SEQ_NO, FLAGS=ACK_FLAG)
             )
 
-            self.sock.sendto(ackPacket.as_bytes(), self.server_loc)
+            self.sendCall(ackPacket.as_bytes(), self.server_loc)
 
     def close(self):
         self.can_proceed_fin.wait()
@@ -255,7 +262,7 @@ class Client:
             Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=FIN_FLAG)
         )
         logClient("Sending FIN to Server")
-        self.sock.sendto(initialFinPacket.as_bytes(), self.server_loc)
+        self.sendCall(initialFinPacket.as_bytes(), self.server_loc)
         self.connectionState = ConnState.FIN_WAIT
         logClient("Client State changed to FIN_WAIT")
         attempt = 1
@@ -264,7 +271,7 @@ class Client:
         while not self.finack:
             if time.time() - timestamp > PACKET_TIMEOUT:
                 logClient(f"Resending FIN to server")
-                self.sock.sendto(initialFinPacket.as_bytes(), self.server_loc)
+                self.sendCall(initialFinPacket.as_bytes(), self.server_loc)
                 attempt += 1
             if attempt >= MAX_FAIL_COUNT:
                 logClient("Server Down!! Terminating FIN and closing.")
@@ -274,7 +281,7 @@ class Client:
         finalFinPacket = Packet(
             Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=ACK_FLAG)
         )
-        self.sock.sendto(finalFinPacket.as_bytes(), self.server_loc)
+        self.sendCall(finalFinPacket.as_bytes(), self.server_loc)
         logClient("Closing Connection BYE!")
         self.connectionState = ConnState.CLOSED
 
@@ -302,7 +309,7 @@ class Client:
                     Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=ACK_FLAG)
                 )
 
-                self.sock.sendto(ackPacket.as_bytes(), self.server_loc)
+                self.sendCall(ackPacket.as_bytes(), self.server_loc)
                 self.connectionState = ConnState.CONNECTED
 
                 logClient("Connection established (hopefully)")
@@ -314,7 +321,7 @@ class Client:
                     Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYN_FLAG)
                 )
                 self.connectionState = ConnState.SYN
-                self.sock.sendto(initialSynPacket.as_bytes(), self.server_loc)
+                self.sendCall(initialSynPacket.as_bytes(), self.server_loc)
 
             else:
                 logClient(
@@ -335,7 +342,7 @@ class Client:
                     Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=ACK_FLAG)
                 )
 
-                self.sock.sendto(ackPacket.as_bytes(), self.server_loc)
+                self.sendCall(ackPacket.as_bytes(), self.server_loc)
                 self.connectionState = ConnState.CONNECTED
                 self.has_receive_buffer.set()
                 logClient("Connection established (again, hopefully)")
@@ -418,10 +425,17 @@ def clientApi(data: str):
     client = Client()
     while client.connectionState != ConnState.CONNECTED:
         pass
+    s = time.time()
+    f = open("client-stats.txt", "w")
     client.fileTransfer(data)
+    timeTaken = time.time() - s
+    stats = f"{client.debugDataSent} {timeTaken}"
+    logClient("Statistics saved")
+    f.write(stats)
+    f.close()
     # time.sleep(0.1)
     # client.fileTransfer("A"*1000)
-    time.sleep(40)
+    # time.sleep(40)
     client.close()
     # time.sleep(30)
     # print("gothere")
