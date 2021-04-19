@@ -1,0 +1,94 @@
+diff --git a/client.py b/client.py
+index 855db78..a0c102d 100644
+--- a/client.py
++++ b/client.py
+@@ -271,7 +271,7 @@ class Client:
+             )
+             logClient(f"Sending ACK packet: seq_no:{self.SEQ_NO} ack_no:{seq_no+1}")
+             ackPacket = Packet(
+-                Header(ACK_NO=seq_no + 1, SEQ_NO=self.SEQ_NO, FLAGS=ACK_FLAG)
++                Header(ACK_NO=seq_no]], SEQ_NO=self.SEQ_NO, FLAGS=ACK_FLAG)
+             )
+ 
+             self.sock.sendto(ackPacket.as_bytes(), self.server_loc)
+diff --git a/config.py b/config.py
+index 4842d13..9b251d8 100644
+--- a/config.py
++++ b/config.py
+@@ -4,11 +4,11 @@ from enum import Enum
+ # |-----|-----|-----|-----|
+ 
+ 
+-SYN_FLAG = b"\x80"
+-ACK_FLAG = b"\x40"
+-SYNACK_FLAG = b"\xc0"
+-FIN_FLAG = b"\x20"
+-FINACK_FLAG = b"\x60"
++SYN_FLAG = b"\x09"
++ACK_FLAG = b"\x02"
++SYNACK_FLAG = b"\x03"
++FIN_FLAG = b"\x04"
++FINACK_FLAG = b"\x06"
+ SOCKET_TIMEOUT = 0.5
+ # TIME_WAIT_TIMEOUT = 0.2
+ MAX_FAIL_COUNT = 30
+diff --git a/header.py b/header.py
+index adaa044..b083a26 100644
+--- a/header.py
++++ b/header.py
+@@ -15,7 +15,7 @@ class Header():
+         return (self.FLAGS == flag)  # -_-
+ 
+     def as_bytes(self) -> bytes:
+-        pack_string = '!IIcI'
++        pack_string = '<IIcI'
+         return struct.pack(pack_string, self.ACK_NO, self.SEQ_NO, self.FLAGS, self.rwnd)
+ 
+ 
+@@ -36,11 +36,11 @@ class Packet():
+ 
+     def strip_packet(self, raw_packet: bytes):
+         # network = big endian
+-        ACK_NO = int.from_bytes(raw_packet[0:4], byteorder="big")
+-        SEQ_NO = int.from_bytes(raw_packet[4:8], byteorder="big")
++        ACK_NO = int.from_bytes(raw_packet[0:4], byteorder="little")
++        SEQ_NO = int.from_bytes(raw_packet[4:8], byteorder="little")
+         FLAGS = bytes([raw_packet[8]])
+         rwnd_rem = int.from_bytes(
+-            raw_packet[9:13], byteorder="big", signed=True)
++            raw_packet[9:13], byteorder="little", signed=False)
+         data = bytes(raw_packet[13:])
+ 
+         self.header = Header(ACK_NO, SEQ_NO, FLAGS, rwnd_rem)
+diff --git a/server.py b/server.py
+index 4a82002..211931b 100644
+--- a/server.py
++++ b/server.py
+@@ -232,8 +232,8 @@ class Server:
+             if len(self.window_packet_buffer) != 0:
+                 self.acquired_window_buffer.acquire()
+                 base_seq = self.window_packet_buffer[0][0].header.SEQ_NO
+-                if ack_num > base_seq - 1:
+-                    index = ack_num - base_seq - 1
++                if ack_num > base_seq:
++                    index = ack_num - base_seq
+                     logServer(
+                         f"Index: {index}, max index = {len(self.window_packet_buffer)-1}"
+                     )
+@@ -241,6 +241,8 @@ class Server:
+                         f"Updating packet {self.window_packet_buffer[index][0].header.SEQ_NO} to ACK'd"
+                     )
+                     self.window_packet_buffer[index][2] = PacketState.ACKED
++                    logServer([(x[0].header.SEQ_NO, x[0].header.ACK_NO, x[2] ) for x in self.window_packet_buffer])
++
+                 self.acquired_window_buffer.release()
+ 
+         elif packet.header.has_flag(FIN_FLAG):
+@@ -292,6 +294,7 @@ class Server:
+                 synAckPacket = Packet(
+                     Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYNACK_FLAG)
+                 )
++                logServer(self.SEQ_NO)
+                 self.sock.sendto(synAckPacket.as_bytes(), self.temp_loc)
+                 self.connectionState = ConnState.SYNACK
+ 

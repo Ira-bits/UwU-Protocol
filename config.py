@@ -4,11 +4,11 @@ from enum import Enum
 # |-----|-----|-----|-----|
 
 
-SYN_FLAG = b"\x80"
-ACK_FLAG = b"\x40"
-SYNACK_FLAG = b"\xc0"
-FIN_FLAG = b"\x20"
-FINACK_FLAG = b"\x60"
+SYN_FLAG = b"\x09"
+ACK_FLAG = b"\x02"
+SYNACK_FLAG = b"\x03"
+FIN_FLAG = b"\x04"
+FINACK_FLAG = b"\x06"
 SOCKET_TIMEOUT = 0.5
 # TIME_WAIT_TIMEOUT = 0.2
 MAX_FAIL_COUNT = 30

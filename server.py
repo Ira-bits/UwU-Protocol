@@ -95,6 +95,8 @@ class Server:
         """
         self.acquired_window_buffer.acquire()
         while len(self.window_packet_buffer) < self.rwnd_size:
+            logServer("fillWindowBuffers")
+
             if not self.temp_buffer:
                 break
             packet = self.temp_buffer.popleft()
@@ -117,6 +119,7 @@ class Server:
         """
         Fills the buffer to send the packet
         """
+        logServer("pushPacketToReceiveBuffer")
         self.receive_packet_buffer.append((packet, location))
         self.has_receive_buffer.set()
 
@@ -135,6 +138,7 @@ class Server:
         Sends a packet
         """
         while True:
+            
             if self.connectionState not in CONNECTED_STATES:
                 # Connection Packet?
                 logServer("Waiting on receive buffer")
@@ -188,7 +192,6 @@ class Server:
                     logServer("Waiting on window")
                     self.has_window_buffer.wait()
                     logServer("Waited on window")
-
                 i = 0
                 while i < len(self.window_packet_buffer):
                     self.acquired_window_buffer.acquire()
@@ -209,7 +212,8 @@ class Server:
                             self.sock.sendto(packet.as_bytes(), self.client_loc)
                             self.window_packet_buffer[i][1] = time.time()
 
-                    elif status == PacketState.ACKED and i == 0:
+                
+                    elif self.window_packet_buffer[i][2] == PacketState.ACKED and i == 0:
                         self.window_packet_buffer.popleft()
                         i -= 1
                         self.slideWindow()
@@ -226,22 +230,32 @@ class Server:
                 logServer("Server is available again for new Connections!")
                 return
             ack_num = packet.header.ACK_NO
-            logServer(
-                f"Received an ACK packet of SEQ_NO:{packet.header.SEQ_NO} and ACK_NO: {packet.header.ACK_NO}"
-            )
+            logServer("CONTENDING Lock in updateWindow")
+
+            self.acquired_window_buffer.acquire()
+            logServer("GOT Lock in updateWindow")
             if len(self.window_packet_buffer) != 0:
-                self.acquired_window_buffer.acquire()
                 base_seq = self.window_packet_buffer[0][0].header.SEQ_NO
-                if ack_num > base_seq - 1:
-                    index = ack_num - base_seq - 1
+
+                # sock.close()
+                if ack_num >= base_seq:
+                    index = ack_num - base_seq
                     logServer(
-                        f"Index: {index}, max index = {len(self.window_packet_buffer)-1}"
+                    f"Received an ACK packet of SEQ_NO:{packet.header.SEQ_NO} and ACK_NO: {packet.header.ACK_NO}, BASE:{base_seq}, INDEX{index}"
                     )
-                    logServer(
-                        f"Updating packet {self.window_packet_buffer[index][0].header.SEQ_NO} to ACK'd"
-                    )
-                    self.window_packet_buffer[index][2] = PacketState.ACKED
-                self.acquired_window_buffer.release()
+                    if index >=0:
+                        logServer(
+                            f"Index: {index}, max index = {len(self.window_packet_buffer)-1}"
+                        )
+                        logServer(
+                            f"Updating packet {self.window_packet_buffer[index][0].header.SEQ_NO} to ACK'd"
+                        )
+                        self.window_packet_buffer[index][2] = PacketState.ACKED
+                        logServer([(x[0].header.SEQ_NO, x[0].header.ACK_NO, x[2] ) for x in self.window_packet_buffer])
+
+            self.acquired_window_buffer.release()
+            logServer("LEFT Lock in updateWindow")
+
 
         elif packet.header.has_flag(FIN_FLAG):
             logServer("State changed to CLOSE_WAIT")
@@ -292,6 +306,7 @@ class Server:
                 synAckPacket = Packet(
                     Header(SEQ_NO=self.SEQ_NO, ACK_NO=self.ACK_NO, FLAGS=SYNACK_FLAG)
                 )
+                logServer(self.SEQ_NO)
                 self.sock.sendto(synAckPacket.as_bytes(), self.temp_loc)
                 self.connectionState = ConnState.SYNACK
 
@@ -308,7 +323,7 @@ class Server:
                 )
                 self.connectionState = ConnState.CONNECTED
                 logServer(f"State changed to connected")
-                self.SEQ_NO += 1
+                # self.SEQ_NO += 1
                 self.client_loc = self.temp_loc
 
             elif packet.header.has_flag(SYN_FLAG):
@@ -348,6 +363,7 @@ class Server:
     def slideWindow(self):
         logServer("Adding packet to window")
         if len(self.temp_buffer) != 0:
+
             packet = self.temp_buffer.popleft()
             self.SEQ_NO += 1
             packet.header.SEQ_NO = self.SEQ_NO
@@ -403,12 +419,14 @@ class Server:
                     self.sock.settimeout(SOCKET_TIMEOUT)
                 else:
                     self.sock.settimeout(None)
+                logServer(f"BEFORE RECV")
 
                 message, location = self.sock.recvfrom(self.buf_size)
+
                 if message is not None:
                     packet = Packet(message)
                     message = None
-
+                logServer(f"Received packet SEQ:{packet.header.SEQ_NO} ACK:{packet.header.ACK_NO} ")
                 if self.connectionState not in CONNECTED_STATES:
                     if packet is not None:
                         if packet.header.has_flag(SYN_FLAG):

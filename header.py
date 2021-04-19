@@ -4,7 +4,7 @@ import struct
 
 
 class Header():
-    def __init__(self, ACK_NO=1, SEQ_NO=1, FLAGS=b'\x00', rwnd_rem=4):
+    def __init__(self, ACK_NO=1, SEQ_NO=1, FLAGS=b'\x00', rwnd_rem=10):
         self.ACK_NO = ACK_NO
         self.SEQ_NO = SEQ_NO
         self.FLAGS = FLAGS
@@ -15,7 +15,7 @@ class Header():
         return (self.FLAGS == flag)  # -_-
 
     def as_bytes(self) -> bytes:
-        pack_string = '!IIcI'
+        pack_string = '<IIcI'
         return struct.pack(pack_string, self.ACK_NO, self.SEQ_NO, self.FLAGS, self.rwnd)
 
 
@@ -36,11 +36,11 @@ class Packet():
 
     def strip_packet(self, raw_packet: bytes):
         # network = big endian
-        ACK_NO = int.from_bytes(raw_packet[0:4], byteorder="big")
-        SEQ_NO = int.from_bytes(raw_packet[4:8], byteorder="big")
+        ACK_NO = int.from_bytes(raw_packet[0:4], byteorder="little")
+        SEQ_NO = int.from_bytes(raw_packet[4:8], byteorder="little")
         FLAGS = bytes([raw_packet[8]])
         rwnd_rem = int.from_bytes(
-            raw_packet[9:13], byteorder="big", signed=True)
+            raw_packet[9:13], byteorder="little", signed=False)
         data = bytes(raw_packet[13:])
 
         self.header = Header(ACK_NO, SEQ_NO, FLAGS, rwnd_rem)
