@@ -72,7 +72,7 @@ def plot_reorder(axis):
 
         packetReorder(pcktReorder[reorder])
         # get throughput
-                f = open("client-stats.txt", "r")
+        f = open("client-stats.txt", "r")
         totalTime, sz = None, None
         for line in f.readlines():
             vals = [float(i) for i in line.split(" ")]
